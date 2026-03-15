@@ -2,7 +2,7 @@
 
 Pi should not start every session blank.
 
-`@mylesmcook/pi-brainmaxx` is a project brain for Pi. It gives each repo a
+`@mmcook/pi-brainmaxx` is a project brain for Pi. It gives each repo a
 small, inspectable `brain/` that Pi reads on normal turns, extends with
 `/reflect`, and mines with `/ruminate`.
 
@@ -14,6 +14,12 @@ GitHub repo:
 ```bash
 pi install /absolute/path/to/pi-brainmaxx
 pi install git:https://github.com/MylesMCook/pi-brainmaxx
+```
+
+Once npm propagation catches up, the registry install will be:
+
+```bash
+pi install npm:@mmcook/pi-brainmaxx
 ```
 
 Then, inside a repo:
@@ -118,7 +124,7 @@ the generated indexes themselves.
 
 - Pi-only, not a generic agent-memory layer
 - Repo-local, not a hosted memory service
-- GitHub install is live; npm registry install is not
+- GitHub install is live; npm registry install is pending publish
 - `ruminate` depends on Pi's current session format
 - if Pi changes that format, `ruminate` reports the mismatch and needs an update
 

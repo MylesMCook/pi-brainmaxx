@@ -1,5 +1,5 @@
 {
-  "name": "@mylesmcook/pi-brainmaxx",
+  "name": "@mmcook/pi-brainmaxx",
   "version": "0.2.0",
   "description": "A project brain for Pi: repo-local memory, reflection, and session-history rumination",
   "type": "module",
