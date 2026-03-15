@@ -1,14 +1,16 @@
 {
   "name": "@mylesmcook/pi-brainmaxx",
   "version": "0.2.0",
-  "description": "Pi-native project brain package with repo-local brain scaffolding, ambient context, and reflection workflows",
+  "description": "A project brain for Pi: repo-local memory, reflection, and session-history rumination",
   "type": "module",
+  "author": "Myles Cook <mylesmcook@gmail.com>",
   "license": "MIT",
   "keywords": [
     "pi-package",
     "pi",
-    "brain",
-    "agent-memory"
+    "project-brain",
+    "repo-memory",
+    "pi-memory"
   ],
   "engines": {
     "node": ">=20.6.0"
