@@ -1,4 +1,4 @@
-export const PACKAGE_VERSION = "0.1.0";
+export const PACKAGE_VERSION = "0.2.0";
 export const SUPPORTED_SESSION_VERSIONS = [2, 3] as const;
 export const BRAIN_DIR = "brain";
 export const BRAIN_VERSION_FILE = "brain/.brainmaxx-version";

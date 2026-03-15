@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { initBrain, readBrainState, syncOwnedEntryPoints } from "../src/brain.js";
+import { initBrain, readBrainState, syncOwnedEntryPoints, writeNoteIfMissing } from "../src/brain.js";
 
 const tempProject = async (): Promise<string> => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "pi-brainmaxx-brain-"));
@@ -92,4 +92,26 @@ test("brain-init reclaims a stale lock file", async () => {
 
   assert.ok(result.created.includes("brain/index.md"));
   await assert.rejects(fs.access(path.join(projectRoot, "brain/.brainmaxx.lock")));
+});
+
+test("writeNoteIfMissing creates a note once and syncs the index", async () => {
+  const projectRoot = await tempProject();
+  await initBrain(projectRoot);
+
+  const first = await writeNoteIfMissing(
+    projectRoot,
+    "brain/notes/repo-operations.md",
+    "# Repo Operations\n\n- Use `pi` for interactive work.\n",
+  );
+  const second = await writeNoteIfMissing(
+    projectRoot,
+    "brain/notes/repo-operations.md",
+    "# Repo Operations\n\n- Different content.\n",
+  );
+  const indexText = await fs.readFile(path.join(projectRoot, "brain/index.md"), "utf8");
+
+  assert.equal(first.created, true);
+  assert.ok(first.synced.includes("brain/index.md"));
+  assert.equal(second.created, false);
+  assert.match(indexText, /\[\[notes\/repo-operations\.md\]\]/);
 });

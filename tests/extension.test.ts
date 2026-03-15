@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { loadSkillsFromDir } from "@mariozechner/pi-coding-agent";
 import brainContext from "../extensions/brain-context.js";
 
 type RegisteredCommand = {
@@ -47,13 +49,31 @@ const tempRepo = async (): Promise<string> => {
   return root;
 };
 
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
 test("brain-context registers the public commands and internal tools", () => {
   const { api, commands, tools } = createApi();
 
   brainContext(api as any);
 
-  assert.deepEqual([...commands.keys()].sort(), ["brain-init", "reflect", "ruminate"]);
+  assert.deepEqual([...commands.keys()].sort(), ["brain-init"]);
   assert.deepEqual([...tools.keys()].sort(), ["brainmaxx_repo_sessions", "brainmaxx_sync_entrypoints"]);
+});
+
+test("reflect and ruminate stay package skills instead of extension commands", () => {
+  const { api, commands } = createApi();
+  const packageSkills = loadSkillsFromDir({
+    dir: path.join(packageRoot, "skills"),
+    source: "path",
+  });
+
+  brainContext(api as any);
+
+  assert.deepEqual([...commands.keys()], ["brain-init"]);
+  assert.deepEqual(
+    packageSkills.skills.map((skill) => skill.name).sort(),
+    ["reflect", "ruminate"],
+  );
 });
 
 test("/brain-init command creates a project brain", async () => {
@@ -65,6 +85,7 @@ test("/brain-init command creates a project brain", async () => {
 
   await commands.get("brain-init")?.handler("", {
     cwd: repoRoot,
+    hasUI: true,
     ui: {
       notify(message: string, level?: string) {
         notifications.push({ message, level });
@@ -74,27 +95,85 @@ test("/brain-init command creates a project brain", async () => {
 
   assert.ok(await fs.stat(path.join(repoRoot, "brain/index.md")));
   assert.ok(await fs.stat(path.join(repoRoot, "brain/principles.md")));
-  assert.equal(notifications.length, 1);
+  assert.equal(notifications.length, 2);
   assert.match(notifications[0]?.message ?? "", /Brain initialized/);
+  assert.match(notifications[1]?.message ?? "", /No concise operational content/);
 });
 
-test("/reflect queues the reflect skill alias when a brain exists", async () => {
-  const { api, commands, sentMessages } = createApi();
+test("/brain-init prints a bootstrap preview in non-interactive mode", async () => {
+  const { api, commands } = createApi();
   const repoRoot = await tempRepo();
+  const output: string[] = [];
 
   brainContext(api as any);
-  await commands.get("brain-init")?.handler("", {
+  await fs.writeFile(path.join(repoRoot, "AGENTS.md"), "- For reconnectable remote work, start with `tmux new-session -A -s beelink`, then run `pi`.\n");
+
+  const originalLog = console.log;
+  const originalWarn = console.warn;
+  try {
+    console.log = (message?: unknown) => output.push(String(message ?? ""));
+    console.warn = (message?: unknown) => output.push(String(message ?? ""));
+    await commands.get("brain-init")?.handler("", {
+      cwd: repoRoot,
+      hasUI: false,
+      ui: { notify() {} },
+    });
+  } finally {
+    console.log = originalLog;
+    console.warn = originalWarn;
+  }
+
+  assert.match(output.join("\n"), /Brain initialized/);
+  assert.match(output.join("\n"), /Operational bootstrap preview/);
+  assert.match(output.join("\n"), /tmux new-session -A -s beelink/);
+  await assert.rejects(fs.access(path.join(repoRoot, "brain/notes")));
+});
+
+test("/brain-init applies bootstrap in non-interactive mode with --apply-bootstrap", async () => {
+  const { api, commands } = createApi();
+  const repoRoot = await tempRepo();
+  const output: string[] = [];
+
+  brainContext(api as any);
+  await fs.writeFile(path.join(repoRoot, "AGENTS.md"), "- Maestro handles delegated Linear repo work in this repo.\n");
+
+  const originalLog = console.log;
+  try {
+    console.log = (message?: unknown) => output.push(String(message ?? ""));
+    await commands.get("brain-init")?.handler("--apply-bootstrap", {
+      cwd: repoRoot,
+      hasUI: false,
+      ui: { notify() {} },
+    });
+  } finally {
+    console.log = originalLog;
+  }
+
+  const notes = await fs.readdir(path.join(repoRoot, "brain/notes"));
+  assert.equal(notes.length, 1);
+  assert.match(output.join("\n"), /Created brain\/notes\/.+-operations\.md/);
+});
+
+test("/brain-init reports unsupported arguments clearly", async () => {
+  const { api, commands } = createApi();
+  const repoRoot = await tempRepo();
+  const notifications: Array<{ message: string; level: string | undefined }> = [];
+
+  brainContext(api as any);
+
+  await commands.get("brain-init")?.handler("--bogus", {
     cwd: repoRoot,
-    ui: { notify() {} },
+    hasUI: true,
+    ui: {
+      notify(message: string, level?: string) {
+        notifications.push({ message, level });
+      },
+    },
   });
 
-  await commands.get("reflect")?.handler("", {
-    cwd: repoRoot,
-    isIdle: () => true,
-    ui: { notify() {} },
-  });
-
-  assert.deepEqual(sentMessages, [{ content: "/skill:reflect", options: undefined }]);
+  assert.equal(notifications.length, 1);
+  assert.match(notifications[0]?.message ?? "", /Unsupported \/brain-init arguments/);
+  assert.equal(notifications[0]?.level, "warning");
 });
 
 test("before_agent_start injects the ambient brain context when a brain exists", async () => {
@@ -104,6 +183,7 @@ test("before_agent_start injects the ambient brain context when a brain exists",
   brainContext(api as any);
   await commands.get("brain-init")?.handler("", {
     cwd: repoRoot,
+    hasUI: true,
     ui: { notify() {} },
   });
 
@@ -123,6 +203,7 @@ test("brainmaxx_sync_entrypoints tool reports updated entrypoints", async () => 
   brainContext(api as any);
   await commands.get("brain-init")?.handler("", {
     cwd: repoRoot,
+    hasUI: true,
     ui: { notify() {} },
   });
   await fs.mkdir(path.join(repoRoot, "brain/notes"), { recursive: true });
@@ -161,6 +242,7 @@ test("brainmaxx_repo_sessions tool returns repo-scoped session history", async (
   brainContext(api as any);
   await commands.get("brain-init")?.handler("", {
     cwd: repoRoot,
+    hasUI: true,
     ui: { notify() {} },
   });
 

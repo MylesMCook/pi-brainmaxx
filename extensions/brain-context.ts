@@ -1,9 +1,9 @@
 import path from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
+import { applyOperationalBootstrap, planOperationalBootstrap } from "../src/bootstrap.js";
 import { buildInjectedBrainMessage } from "../src/injection.js";
 import {
-  hasBrainEntrypoints,
   initBrain,
   readEntrypoints,
   syncOwnedEntryPoints,
@@ -11,69 +11,135 @@ import {
 import { findGitRoot, resolveProjectRoot } from "../src/project-root.js";
 import { collectRepoSessions } from "../src/sessions.js";
 
-const queueSkill = (pi: ExtensionAPI, skillName: "reflect" | "ruminate", args: string, isIdle: boolean): void => {
-  const message = args.trim() ? `/skill:${skillName} ${args.trim()}` : `/skill:${skillName}`;
-  if (isIdle) {
-    pi.sendUserMessage(message);
-  } else {
-    pi.sendUserMessage(message, { deliverAs: "followUp" });
+const APPLY_BOOTSTRAP_FLAG = "--apply-bootstrap";
+
+const report = (
+  message: string,
+  level: "info" | "warning" | "error",
+  ctx: { hasUI?: boolean; ui: { notify(message: string, level?: "info" | "warning" | "error"): void } },
+): void => {
+  if (ctx.hasUI) {
+    ctx.ui.notify(message, level);
+    return;
   }
+
+  if (level === "error") {
+    console.error(message);
+    return;
+  }
+  if (level === "warning") {
+    console.warn(message);
+    return;
+  }
+  console.log(message);
+};
+
+const parseBrainInitArgs = (args: string): { applyBootstrap: boolean } => {
+  const tokens = args
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  if (tokens.length === 0) {
+    return { applyBootstrap: false };
+  }
+
+  if (tokens.length === 1 && tokens[0] === APPLY_BOOTSTRAP_FLAG) {
+    return { applyBootstrap: true };
+  }
+
+  throw new Error(`Unsupported /brain-init arguments: ${tokens.join(" ")}. Supported: ${APPLY_BOOTSTRAP_FLAG}`);
+};
+
+const formatBrainInitSummary = (projectRoot: string, created: string[], synced: string[]): string => {
+  const createdLabel = created.length > 0 ? created.join(", ") : "nothing new";
+  const syncedLabel = synced.length > 0 ? synced.join(", ") : "none";
+  return `Brain initialized at ${path.join(projectRoot, "brain")} (${createdLabel}). Synced: ${syncedLabel}.`;
+};
+
+const formatBootstrapPreview = (noteRelativePath: string, sourceFiles: string[], content: string): string => {
+  const lines = [
+    `Operational bootstrap preview for ${noteRelativePath}`,
+    sourceFiles.length > 0 ? `Sources: ${sourceFiles.join(", ")}` : "Sources: none",
+    "",
+    content.trim(),
+  ];
+  return lines.join("\n");
 };
 
 export default function brainContext(pi: ExtensionAPI): void {
   pi.registerCommand("brain-init", {
     description: "Initialize a project-local brain in the current repo",
-    handler: async (_args, ctx) => {
+    getArgumentCompletions: (prefix) => {
+      if (APPLY_BOOTSTRAP_FLAG.startsWith(prefix)) {
+        return [{ value: APPLY_BOOTSTRAP_FLAG, label: `${APPLY_BOOTSTRAP_FLAG} - write the proposed operations note` }];
+      }
+      return null;
+    },
+    handler: async (args, ctx) => {
       try {
+        const { applyBootstrap } = parseBrainInitArgs(args);
         const gitRoot = await findGitRoot(ctx.cwd);
         const projectRoot = await resolveProjectRoot(ctx.cwd);
         const result = await initBrain(projectRoot);
-        const created = result.created.length > 0 ? result.created.join(", ") : "nothing new";
-        const synced = result.synced.length > 0 ? ` Synced: ${result.synced.join(", ")}.` : "";
+
         if (!gitRoot) {
-          ctx.ui.notify("No .git directory was found. /brain-init used the current directory as the project root.", "warning");
+          report("No .git directory was found. /brain-init used the current directory as the project root.", "warning", ctx);
         }
-        ctx.ui.notify(`Brain initialized at ${path.join(projectRoot, "brain")} (${created}).${synced}`, "info");
-      } catch (error) {
-        ctx.ui.notify(`pi-brainmaxx failed to initialize the brain: ${(error as Error).message}`, "error");
-      }
-    },
-  });
 
-  pi.registerCommand("reflect", {
-    description: "Capture durable learnings from the current Pi session into the project brain",
-    handler: async (args, ctx) => {
-      try {
-        const projectRoot = await resolveProjectRoot(ctx.cwd);
-        if (!(await hasBrainEntrypoints(projectRoot))) {
-          ctx.ui.notify("No project brain found. Run /brain-init first.", "warning");
+        report(formatBrainInitSummary(projectRoot, result.created, result.synced), "info", ctx);
+
+        const bootstrap = await planOperationalBootstrap(projectRoot);
+        if (bootstrap.status !== "ready") {
+          report(bootstrap.reason, bootstrap.status === "exists" ? "info" : "warning", ctx);
           return;
         }
-        queueSkill(pi, "reflect", args, ctx.isIdle());
-        if (!ctx.isIdle()) {
-          ctx.ui.notify("/reflect queued", "info");
-        }
-      } catch (error) {
-        ctx.ui.notify(`pi-brainmaxx could not start /reflect: ${(error as Error).message}`, "error");
-      }
-    },
-  });
 
-  pi.registerCommand("ruminate", {
-    description: "Mine older Pi sessions for missed durable knowledge in this repo",
-    handler: async (args, ctx) => {
-      try {
-        const projectRoot = await resolveProjectRoot(ctx.cwd);
-        if (!(await hasBrainEntrypoints(projectRoot))) {
-          ctx.ui.notify("No project brain found. Run /brain-init first.", "warning");
+        const preview = formatBootstrapPreview(bootstrap.noteRelativePath, bootstrap.sourceFiles, bootstrap.content);
+        if (!ctx.hasUI) {
+          console.log(preview);
+          if (!applyBootstrap) {
+            console.log(`Re-run /brain-init ${APPLY_BOOTSTRAP_FLAG} to create this note.`);
+            return;
+          }
+
+          const applied = await applyOperationalBootstrap(projectRoot);
+          if (applied.status === "created") {
+            console.log(
+              `Created ${applied.noteRelativePath} from ${applied.sourceFiles.join(", ")}. Synced: ${applied.synced.join(", ") || "none"}.`,
+            );
+            return;
+          }
+
+          console.warn(applied.reason);
           return;
         }
-        queueSkill(pi, "ruminate", args, ctx.isIdle());
-        if (!ctx.isIdle()) {
-          ctx.ui.notify("/ruminate queued", "info");
+
+        const confirmed = await ctx.ui.confirm("Apply operational bootstrap?", preview);
+        if (!confirmed) {
+          report(`Operational bootstrap previewed for ${bootstrap.noteRelativePath}.`, "info", ctx);
+          return;
         }
+
+        const applied = await applyOperationalBootstrap(projectRoot);
+        if (applied.status === "created") {
+          report(
+            `Created ${applied.noteRelativePath} from ${applied.sourceFiles.join(", ")}. Synced: ${applied.synced.join(", ") || "none"}.`,
+            "info",
+            ctx,
+          );
+          return;
+        }
+
+        report(applied.reason, applied.status === "exists" ? "info" : "warning", ctx);
       } catch (error) {
-        ctx.ui.notify(`pi-brainmaxx could not start /ruminate: ${(error as Error).message}`, "error");
+        const message = (error as Error).message;
+        if (message.startsWith("Unsupported /brain-init arguments:")) {
+          report(message, "warning", ctx);
+          return;
+        }
+        report(`pi-brainmaxx failed to initialize the brain: ${message}`, "error", ctx);
       }
     },
   });

@@ -1,6 +1,6 @@
 {
   "name": "@mylesmcook/pi-brainmaxx",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pi-native project brain package with repo-local brain scaffolding, ambient context, and reflection workflows",
   "type": "module",
   "license": "MIT",

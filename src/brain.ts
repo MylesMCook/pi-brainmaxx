@@ -9,6 +9,7 @@ import {
   PACKAGE_VERSION,
   PRINCIPLES_ENTRYPOINT,
 } from "./constants.js";
+import { exists, readFileIfPresent } from "./fs-helpers.js";
 import { toPortablePath } from "./project-root.js";
 
 export type BrainState = {
@@ -28,30 +29,15 @@ export type BrainSyncResult = {
   skipped: string[];
 };
 
+export type BrainNoteWriteResult = {
+  created: boolean;
+  synced: string[];
+};
+
 const STARTER_BRAIN_ROOT = fileURLToPath(new URL("../brain", import.meta.url));
 const LOCKFILE_NAME = ".brainmaxx.lock";
 const LOCK_STALE_MS = 30_000;
 const LOCK_INVALID_STALE_MS = 250;
-
-const exists = async (target: string): Promise<boolean> => {
-  try {
-    await fs.access(target);
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-const readFileIfPresent = async (target: string): Promise<string | null> => {
-  try {
-    return await fs.readFile(target, "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return null;
-    }
-    throw error;
-  }
-};
 
 const walkFiles = async (root: string): Promise<string[]> => {
   const entries = await fs.readdir(root, { withFileTypes: true });
@@ -177,10 +163,6 @@ const waitForUnlocked = async (projectRoot: string): Promise<void> => {
   }
 
   throw new Error(`Timed out waiting for ${lockPath}`);
-};
-
-export const hasBrainEntrypoints = async (projectRoot: string): Promise<boolean> => {
-  return (await exists(path.join(projectRoot, INDEX_ENTRYPOINT))) && (await exists(path.join(projectRoot, PRINCIPLES_ENTRYPOINT)));
 };
 
 export const readBrainState = async (projectRoot: string): Promise<BrainState | null> => {
@@ -428,6 +410,8 @@ const syncOwnedEntryPointsUnlocked = async (projectRoot: string, state: BrainSta
   return { updated, skipped };
 };
 
+const ensureTrailingNewline = (content: string): string => (content.endsWith("\n") ? content : `${content}\n`);
+
 export const syncOwnedEntryPoints = async (projectRoot: string): Promise<BrainSyncResult> => {
   return withBrainLock(projectRoot, async () => {
     const state = await readBrainState(projectRoot);
@@ -446,4 +430,36 @@ export const readEntrypoints = async (projectRoot: string): Promise<{ index: str
     return null;
   }
   return { index, principles };
+};
+
+export const writeNoteIfMissing = async (
+  projectRoot: string,
+  noteRelativePath: string,
+  content: string,
+): Promise<BrainNoteWriteResult> => {
+  const portablePath = toPortablePath(noteRelativePath);
+  if (!portablePath.startsWith(`${NOTES_DIR}/`) || !portablePath.endsWith(".md")) {
+    throw new Error(`Notes must live under ${NOTES_DIR}/ and end in .md`);
+  }
+
+  return withBrainLock(projectRoot, async () => {
+    const state = await readBrainState(projectRoot);
+    if (!state) {
+      throw new Error("No project brain found. Run /brain-init first.");
+    }
+
+    const destination = path.join(projectRoot, portablePath);
+    if (await exists(destination)) {
+      return { created: false, synced: [] };
+    }
+
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await fs.writeFile(destination, ensureTrailingNewline(content));
+
+    const sync = await syncOwnedEntryPointsUnlocked(projectRoot, state);
+    return {
+      created: true,
+      synced: sync.updated,
+    };
+  });
 };
