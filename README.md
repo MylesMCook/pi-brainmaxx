@@ -85,6 +85,10 @@ mining learnings over time.
 This package stays intentionally small. It does not try to become another
 orchestrator, another dashboard, or a generic memory platform.
 
+With regard to the core idea, `pi-brainmaxx` is inspired by
+[`brainmaxxing`](https://github.com/poteto/brainmaxxing) by poteto. The
+implementation here is Pi-native and specific to this package.
+
 ## Example outcome
 
 Before:
