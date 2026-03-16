@@ -5,6 +5,7 @@ export const BRAIN_VERSION_FILE = "brain/.brainmaxx-version";
 export const INDEX_ENTRYPOINT = "brain/index.md";
 export const PRINCIPLES_ENTRYPOINT = "brain/principles.md";
 export const NOTES_DIR = "brain/notes";
+export const CODEX_RUMINATE_STAGE_FILE = "brain/.brainmaxx-ruminate-stage.json";
 export const DEFAULT_INJECTION_MAX_BYTES = 12_000;
 export const DEFAULT_INJECTION_MAX_LINES = 220;
 export const DEFAULT_CODEX_MIN_RUMINATION_SESSIONS = 5;

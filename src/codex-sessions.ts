@@ -21,6 +21,10 @@ export type CodexRepoSession = {
   messageCount: number;
 };
 
+export type CodexCurrentSession = CodexRepoSession & {
+  repoRoot: string;
+};
+
 export type CodexRuminationReadiness =
   | { status: "ready"; reason: string }
   | { status: "insufficient"; reason: string }
@@ -204,6 +208,41 @@ const isInjectedContextMessage = (text: string): boolean => {
 };
 
 const lineCount = (text: string): number => (text === "" ? 0 : text.split("\n").length);
+
+const findSessionFileForThread = async (
+  sessionsRoot: string,
+  threadId: string,
+): Promise<{ file: string; meta: SessionMetaPayload } | null> => {
+  const files = (await walkFiles(sessionsRoot)).sort((a, b) => b.localeCompare(a));
+
+  for (const file of files) {
+    if (!path.basename(file).includes(threadId)) {
+      continue;
+    }
+
+    try {
+      const meta = await readSessionMeta(file);
+      if (meta.id === threadId) {
+        return { file, meta };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  for (const file of files) {
+    try {
+      const meta = await readSessionMeta(file);
+      if (meta.id === threadId) {
+        return { file, meta };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+};
 
 const readSessionTranscript = async (
   file: string,
@@ -416,5 +455,54 @@ export const collectCodexRepoSessions = async (
     candidateFiles: candidates.length,
     skippedFiles,
     readiness,
+  };
+};
+
+export const collectCurrentCodexSession = async (options: {
+  cwd: string;
+  currentThreadId?: string;
+  sessionsRoot?: string;
+  maxChars?: number;
+}): Promise<CodexCurrentSession> => {
+  const repoRoot = await resolveProjectRoot(options.cwd);
+  const currentThreadId = options.currentThreadId ?? process.env.CODEX_THREAD_ID;
+  if (!currentThreadId) {
+    throw new Error("No current Codex thread id found. Set CODEX_THREAD_ID or pass --current-thread-id.");
+  }
+
+  const sessionsRoot = options.sessionsRoot ?? path.join(os.homedir(), ".codex/sessions");
+  const located = await findSessionFileForThread(sessionsRoot, currentThreadId);
+  if (!located) {
+    throw new Error(`Could not locate a Codex session file for thread ${currentThreadId}.`);
+  }
+
+  if (!isSameOrDescendant(repoRoot, located.meta.cwd)) {
+    throw new Error(
+      `Current Codex thread ${currentThreadId} belongs to ${located.meta.cwd}, not repo root ${repoRoot}.`,
+    );
+  }
+
+  const { transcript, assistantModels, messageCount, warnings } = await readSessionTranscript(
+    located.file,
+    options.maxChars ?? 8_000,
+  );
+
+  if (warnings.length > 0 && !transcript.trim()) {
+    throw new Error(`Current Codex thread ${currentThreadId} has no readable conversation text.`);
+  }
+
+  if (!transcript.trim() || messageCount === 0 || lineCount(transcript) === 0) {
+    throw new Error(`Current Codex thread ${currentThreadId} has no readable conversation text.`);
+  }
+
+  return {
+    repoRoot,
+    file: located.file,
+    sessionId: located.meta.id,
+    cwd: located.meta.cwd,
+    startedAt: located.meta.timestamp,
+    transcript,
+    assistantModels,
+    messageCount,
   };
 };

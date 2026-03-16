@@ -119,6 +119,13 @@ Those skills use the same `brain/` corpus and a managed `AGENTS.md` block:
 Only `brainmaxx-init` updates that block. Reflection and rumination write only
 under `brain/`.
 
+On the Codex side, the skills now use real Codex session data too:
+- `brainmaxx-reflect` reads the current thread from `CODEX_THREAD_ID`
+- `brainmaxx-ruminate` reads repo-scoped Codex session history from
+  `~/.codex/sessions`
+- rumination uses a staged preview under `brain/` and applies only through the
+  staged helper path
+
 With regard to the core idea, `pi-brainmaxx` is inspired by
 [`brainmaxxing`](https://github.com/poteto/brainmaxxing) by poteto. The
 implementation here is Pi-native and specific to this package.

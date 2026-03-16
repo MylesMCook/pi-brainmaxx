@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   assessCodexRuminationReadiness,
+  collectCurrentCodexSession,
   collectCodexRepoSessions,
 } from "../src/codex-sessions.js";
 
@@ -204,4 +205,100 @@ test("assessCodexRuminationReadiness treats zero readable sessions as unsupporte
 
   assert.equal(readiness.status, "unsupported");
   assert.match(readiness.reason, /none had readable supported transcript data/);
+});
+
+test("collectCurrentCodexSession returns the current thread transcript for the repo", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-brainmaxx-codex-current-"));
+  const projectRoot = path.join(tempRoot, "repo");
+  const childRoot = path.join(projectRoot, "src");
+  const sessionsRoot = path.join(tempRoot, "sessions");
+
+  await fs.mkdir(childRoot, { recursive: true });
+  await fs.writeFile(path.join(projectRoot, ".git"), "gitdir: fake\n");
+
+  const file = await writeSession(sessionsRoot, ["2026", "03", "16"], "rollout-2026-03-16T00-00-00-thread-1.jsonl", [
+    {
+      type: "session_meta",
+      payload: {
+        id: "thread-1",
+        timestamp: "2026-03-16T00:00:00.000Z",
+        cwd: childRoot,
+        originator: "codex_cli_rs",
+        cli_version: "0.114.0",
+      },
+    },
+    {
+      type: "response_item",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "# AGENTS.md instructions for /home/myles\n<INSTRUCTIONS>\n..." }],
+      },
+    },
+    {
+      type: "turn_context",
+      payload: { model: "gpt-5.4" },
+    },
+    {
+      type: "response_item",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "Keep the repo memory concise." }],
+      },
+    },
+    {
+      type: "response_item",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "Understood." }],
+      },
+    },
+  ]);
+
+  const result = await collectCurrentCodexSession({
+    cwd: childRoot,
+    currentThreadId: "thread-1",
+    sessionsRoot,
+  });
+
+  assert.equal(result.repoRoot, projectRoot);
+  assert.equal(result.file, file);
+  assert.match(result.transcript, /User: Keep the repo memory concise/);
+  assert.match(result.transcript, /Assistant: Understood/);
+  assert.doesNotMatch(result.transcript, /AGENTS\.md instructions/);
+});
+
+test("collectCurrentCodexSession rejects a current thread from another repo", async () => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-brainmaxx-codex-current-"));
+  const projectRoot = path.join(tempRoot, "repo");
+  const otherRoot = path.join(tempRoot, "other");
+  const sessionsRoot = path.join(tempRoot, "sessions");
+
+  await fs.mkdir(projectRoot, { recursive: true });
+  await fs.writeFile(path.join(projectRoot, ".git"), "gitdir: fake\n");
+  await fs.mkdir(otherRoot, { recursive: true });
+
+  await writeSession(sessionsRoot, ["2026", "03", "16"], "rollout-2026-03-16T00-00-00-thread-2.jsonl", [
+    {
+      type: "session_meta",
+      payload: {
+        id: "thread-2",
+        timestamp: "2026-03-16T00:00:00.000Z",
+        cwd: otherRoot,
+        originator: "codex_cli_rs",
+        cli_version: "0.114.0",
+      },
+    },
+  ]);
+
+  await assert.rejects(
+    collectCurrentCodexSession({
+      cwd: projectRoot,
+      currentThreadId: "thread-2",
+      sessionsRoot,
+    }),
+    /belongs to .* not repo root/i,
+  );
 });
