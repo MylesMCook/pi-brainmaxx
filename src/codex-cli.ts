@@ -26,7 +26,8 @@ type Command =
   | "stage-ruminate"
   | "staged-ruminate"
   | "apply-staged-ruminate"
-  | "discard-staged-ruminate";
+  | "discard-staged-ruminate"
+  | "help";
 
 const usage = (): string =>
   [
@@ -40,7 +41,10 @@ const usage = (): string =>
     "  scripts/brainerd-codex.sh staged-ruminate [--cwd <path>]",
     "  scripts/brainerd-codex.sh apply-staged-ruminate [--cwd <path>] [--stage-id <id>]",
     "  scripts/brainerd-codex.sh discard-staged-ruminate [--cwd <path>]",
+    "  scripts/brainerd-codex.sh help",
   ].join("\n");
+
+const formatArgumentError = (message: string): Error => new Error(`${message}\n\n${usage()}`);
 
 const parseArgs = (
   argv: string[],
@@ -57,6 +61,14 @@ const parseArgs = (
   stageId?: string;
 } => {
   const [command, ...rest] = argv;
+  if (!command || command === "help" || command === "--help" || command === "-h") {
+    return {
+      command: "help",
+      cwd: process.cwd(),
+      applyBootstrap: false,
+    };
+  }
+
   if (
     command !== "init" &&
     command !== "sync" &&
@@ -68,7 +80,7 @@ const parseArgs = (
     command !== "apply-staged-ruminate" &&
     command !== "discard-staged-ruminate"
   ) {
-    throw new Error(usage());
+    throw formatArgumentError(`Unsupported command: ${command}`);
   }
 
   let cwd = process.cwd();
@@ -102,7 +114,7 @@ const parseArgs = (
       ) &&
       !value
     ) {
-      throw new Error(`Missing value for ${token}`);
+      throw formatArgumentError(`Missing value for ${token}`);
     }
 
     switch (token) {
@@ -139,7 +151,7 @@ const parseArgs = (
         index += 1;
         break;
       default:
-        throw new Error(`Unsupported argument: ${token}`);
+        throw formatArgumentError(`Unsupported argument: ${token}`);
     }
   }
 
@@ -404,6 +416,9 @@ const printDiscardStagedRuminate = async (cwd: string): Promise<void> => {
 const main = async (): Promise<void> => {
   const args = parseArgs(process.argv.slice(2));
   switch (args.command) {
+    case "help":
+      console.log(usage());
+      return;
     case "init":
       await printInit(args.cwd, args.applyBootstrap);
       return;
