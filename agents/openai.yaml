@@ -1,0 +1,4 @@
+interface:
+  display_name: "Brainerd"
+  short_description: "Manage a repo-local brain from Codex"
+  default_prompt: "Use $brainerd to initialize the repo brain, reflect durable knowledge from this Codex conversation, or ruminate on older repo-scoped Codex sessions."
