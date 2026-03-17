@@ -9,7 +9,14 @@ This project brain stores durable repo memory.
 
 - [[principles.md]] - Stable engineering principles, preferences, and defaults.
 
+## Principle Files
+
+- [[principles/boundary-discipline.md]] - Boundary Discipline
+- [[principles/fix-root-causes.md]] - Fix Root Causes
+- [[principles/outcome-oriented-execution.md]] - Outcome-Oriented Execution
+- [[principles/prove-it-works.md]] - Prove It Works
+- [[principles/subtract-before-you-add.md]] - Subtract Before You Add
+
 ## Notes
 
-Create focused notes under `brain/notes/` when a durable learning does not fit
-an existing principle file.
+- [[notes/codex-skill-surface.md]]
