@@ -27,25 +27,30 @@
   },
   "pi": {
     "extensions": [
-      "./extensions"
+      "./dist/extensions"
     ],
     "skills": [
       "./skills"
     ]
   },
   "files": [
+    "AGENTS.md",
+    "agents",
     "brain",
     "codex-skills",
-    "extensions",
+    "dist",
+    "scripts",
     "skills",
-    "src",
-    "LICENSE",
+    "SKILL.md",
     "README.md",
+    "LICENSE",
     "THIRD-PARTY-NOTICES.md"
   ],
   "scripts": {
-    "build": "tsc --noEmit",
-    "test": "node --import tsx --test tests/**/*.test.ts"
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --import tsx --test tests/**/*.test.ts",
+    "prepack": "npm run build"
   },
   "peerDependencies": {
     "@mariozechner/pi-ai": "*",

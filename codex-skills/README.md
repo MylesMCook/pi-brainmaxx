@@ -11,10 +11,10 @@ ln -s /absolute/path/to/brainerd/codex-skills/brainerd-reflect ~/.codex/skills/b
 ln -s /absolute/path/to/brainerd/codex-skills/brainerd-ruminate ~/.codex/skills/brainerd-ruminate
 ```
 
-The skills expect to live inside this repo so they can call:
+The skills expect to live inside this repo so they can call the stable wrapper:
 
 ```bash
-node --import tsx ../../src/codex-cli.ts ...
+../../scripts/brainerd-codex.sh ...
 ```
 
 The Codex helper commands now mirror the Pi side more closely:

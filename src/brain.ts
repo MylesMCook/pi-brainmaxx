@@ -45,7 +45,12 @@ export type ApplyBrainChangesResult = {
   synced: string[];
 };
 
-const STARTER_BRAIN_ROOT = fileURLToPath(new URL("../brain", import.meta.url));
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const packageRoot =
+  path.basename(moduleDir) === "src" && path.basename(path.dirname(moduleDir)) === "dist"
+    ? path.dirname(path.dirname(moduleDir))
+    : path.dirname(moduleDir);
+const STARTER_BRAIN_ROOT = path.join(packageRoot, "brain");
 const LOCKFILE_NAME = ".brainerd.lock";
 const LOCK_STALE_MS = 30_000;
 const LOCK_INVALID_STALE_MS = 250;

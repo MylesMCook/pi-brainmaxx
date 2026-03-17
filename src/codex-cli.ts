@@ -31,15 +31,15 @@ type Command =
 const usage = (): string =>
   [
     "Usage:",
-    "  node --import tsx src/codex-cli.ts init [--apply-bootstrap] [--cwd <path>]",
-    "  node --import tsx src/codex-cli.ts sync [--cwd <path>]",
-    "  node --import tsx src/codex-cli.ts repo-sessions [--cwd <path>] [--max-sessions <n>] [--max-chars-per-session <n>] [--min-sessions <n>] [--current-thread-id <id>]",
-    "  node --import tsx src/codex-cli.ts current-session [--cwd <path>] [--current-thread-id <id>] [--max-chars <n>]",
-    "  node --import tsx src/codex-cli.ts apply-changes [--cwd <path>] [--input <json-file>]",
-    "  node --import tsx src/codex-cli.ts stage-ruminate [--cwd <path>] [--input <json-file>]",
-    "  node --import tsx src/codex-cli.ts staged-ruminate [--cwd <path>]",
-    "  node --import tsx src/codex-cli.ts apply-staged-ruminate [--cwd <path>] [--stage-id <id>]",
-    "  node --import tsx src/codex-cli.ts discard-staged-ruminate [--cwd <path>]",
+    "  scripts/brainerd-codex.sh init [--apply-bootstrap] [--cwd <path>]",
+    "  scripts/brainerd-codex.sh sync [--cwd <path>]",
+    "  scripts/brainerd-codex.sh repo-sessions [--cwd <path>] [--max-sessions <n>] [--max-chars-per-session <n>] [--min-sessions <n>] [--current-thread-id <id>]",
+    "  scripts/brainerd-codex.sh current-session [--cwd <path>] [--current-thread-id <id>] [--max-chars <n>]",
+    "  scripts/brainerd-codex.sh apply-changes [--cwd <path>] [--input <json-file>]",
+    "  scripts/brainerd-codex.sh stage-ruminate [--cwd <path>] [--input <json-file>]",
+    "  scripts/brainerd-codex.sh staged-ruminate [--cwd <path>]",
+    "  scripts/brainerd-codex.sh apply-staged-ruminate [--cwd <path>] [--stage-id <id>]",
+    "  scripts/brainerd-codex.sh discard-staged-ruminate [--cwd <path>]",
   ].join("\n");
 
 const parseArgs = (

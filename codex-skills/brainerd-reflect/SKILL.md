@@ -15,7 +15,7 @@ brain.
 2. Run:
 
 ```bash
-node --import tsx ../../src/codex-cli.ts current-session
+../../scripts/brainerd-codex.sh current-session
 ```
 
 3. Use that current-thread transcript as the source of truth for what just
@@ -43,7 +43,7 @@ node --import tsx ../../src/codex-cli.ts current-session
 9. Apply the change only through:
 
 ```bash
-node --import tsx ../../src/codex-cli.ts apply-changes --input /tmp/brainerd-reflect.json
+../../scripts/brainerd-codex.sh apply-changes --input /tmp/brainerd-reflect.json
 ```
 
 ## Rules

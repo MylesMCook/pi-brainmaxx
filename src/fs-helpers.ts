@@ -1,8 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { isSameOrDescendant, toPortablePath } from "./project-root.js";
-import path from "node:path";
-import { isSameOrDescendant, toPortablePath } from "./project-root.js";
 
 export const exists = async (target: string): Promise<boolean> => {
   try {

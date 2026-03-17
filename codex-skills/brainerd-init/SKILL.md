@@ -13,7 +13,7 @@ Use this skill to initialize brainerd for Codex in the current repo.
 1. Run:
 
 ```bash
-node --import tsx ../../src/codex-cli.ts init
+../../scripts/brainerd-codex.sh init
 ```
 
 2. This creates any missing `brain/` managed files and installs or updates the
@@ -24,7 +24,7 @@ node --import tsx ../../src/codex-cli.ts init
 5. To apply the bootstrap note, run:
 
 ```bash
-node --import tsx ../../src/codex-cli.ts init --apply-bootstrap
+../../scripts/brainerd-codex.sh init --apply-bootstrap
 ```
 
 ## Rules

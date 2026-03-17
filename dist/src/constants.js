@@ -1,0 +1,13 @@
+export const PACKAGE_VERSION = "0.3.0";
+export const SUPPORTED_SESSION_VERSIONS = [2, 3];
+export const BRAIN_DIR = "brain";
+export const BRAIN_VERSION_FILE = "brain/.brainerd-version";
+export const LEGACY_VERSION_FILE = "brain/.brainmaxx-version";
+export const INDEX_ENTRYPOINT = "brain/index.md";
+export const PRINCIPLES_ENTRYPOINT = "brain/principles.md";
+export const NOTES_DIR = "brain/notes";
+export const CODEX_RUMINATE_STAGE_FILE = "brain/.brainerd-ruminate-stage.json";
+export const LEGACY_RUMINATE_STAGE_FILE = "brain/.brainmaxx-ruminate-stage.json";
+export const DEFAULT_INJECTION_MAX_BYTES = 12_000;
+export const DEFAULT_INJECTION_MAX_LINES = 220;
+export const DEFAULT_CODEX_MIN_RUMINATION_SESSIONS = 5;

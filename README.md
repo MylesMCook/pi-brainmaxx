@@ -32,6 +32,12 @@ Use:
 /ruminate
 ```
 
+If you edit the TypeScript sources, rebuild the packaged Codex runtime with:
+
+```bash
+npm run build
+```
+
 ## Codex
 
 If a repo already has a Brainerd brain, Codex can read `brain/index.md` and

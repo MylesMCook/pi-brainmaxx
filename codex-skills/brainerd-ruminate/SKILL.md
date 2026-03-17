@@ -14,27 +14,27 @@ Mine older Codex sessions for durable patterns the current brain has missed.
 2. Check for an already staged preview:
 
 ```bash
-node --import tsx ../../src/codex-cli.ts staged-ruminate
+../../scripts/brainerd-codex.sh staged-ruminate
 ```
 
 3. If a staged preview exists and the user is clearly asking to apply it, apply
    it with:
 
 ```bash
-node --import tsx ../../src/codex-cli.ts apply-staged-ruminate
+../../scripts/brainerd-codex.sh apply-staged-ruminate
 ```
 
 4. If a staged preview exists and the user is clearly rejecting it, discard it
    with:
 
 ```bash
-node --import tsx ../../src/codex-cli.ts discard-staged-ruminate
+../../scripts/brainerd-codex.sh discard-staged-ruminate
 ```
 
 5. Otherwise start a fresh preview:
 
 ```bash
-node --import tsx ../../src/codex-cli.ts repo-sessions
+../../scripts/brainerd-codex.sh repo-sessions
 ```
 
 6. Use only the repo-scoped Codex history returned by that command.
@@ -62,7 +62,7 @@ node --import tsx ../../src/codex-cli.ts repo-sessions
 11. Stage the preview only through:
 
 ```bash
-node --import tsx ../../src/codex-cli.ts stage-ruminate --input /tmp/brainerd-ruminate.json
+../../scripts/brainerd-codex.sh stage-ruminate --input /tmp/brainerd-ruminate.json
 ```
 
 12. Do not write brain files during the preview phase.
