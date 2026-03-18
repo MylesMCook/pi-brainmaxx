@@ -1,4 +1,4 @@
 interface:
   display_name: "Brainerd"
-  short_description: "Manage a repo-local brain from Codex"
-  default_prompt: "Use $brainerd to initialize the repo brain, reflect durable knowledge from this Codex conversation, or ruminate on older repo-scoped Codex sessions."
+  short_description: "Route repo-local brain work to the right harness-specific Brainerd surface"
+  default_prompt: "Use $brainerd as the umbrella router, then pick the correct harness-specific surface: $pi-init/$pi-reflect/$pi-ruminate, $codex-init/$codex-reflect/$codex-ruminate, or $claude-init/$claude-reflect/$claude-ruminate."

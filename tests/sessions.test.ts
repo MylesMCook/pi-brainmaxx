@@ -11,7 +11,7 @@ const writeSession = async (
   name: string,
   lines: unknown[],
 ): Promise<string> => {
-  const directory = path.join(sessionsRoot, `--${cwd.replaceAll("/", "-")}--`);
+  const directory = path.join(sessionsRoot, `--${cwd.replaceAll("\\", "-").replaceAll("/", "-").replaceAll(":", "-")}--`);
   await fs.mkdir(directory, { recursive: true });
   const file = path.join(directory, name);
   await fs.writeFile(file, `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`);
@@ -84,7 +84,10 @@ test("collectRepoSessions reports malformed session files as warnings", async ()
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-brainerd-sessions-"));
   const projectRoot = path.join(tempRoot, "repo");
   const sessionsRoot = path.join(tempRoot, "sessions");
-  const directory = path.join(sessionsRoot, `--${projectRoot.replaceAll("/", "-")}--`);
+  const directory = path.join(
+    sessionsRoot,
+    `--${projectRoot.replaceAll("\\", "-").replaceAll("/", "-").replaceAll(":", "-")}--`,
+  );
 
   await fs.mkdir(projectRoot, { recursive: true });
   await fs.writeFile(path.join(projectRoot, ".git"), "gitdir: fake\n");
@@ -104,7 +107,10 @@ test("collectRepoSessions skips malformed session bodies after a valid header", 
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-brainerd-sessions-"));
   const projectRoot = path.join(tempRoot, "repo");
   const sessionsRoot = path.join(tempRoot, "sessions");
-  const directory = path.join(sessionsRoot, `--${projectRoot.replaceAll("/", "-")}--`);
+  const directory = path.join(
+    sessionsRoot,
+    `--${projectRoot.replaceAll("\\", "-").replaceAll("/", "-").replaceAll(":", "-")}--`,
+  );
 
   await fs.mkdir(projectRoot, { recursive: true });
   await fs.writeFile(path.join(projectRoot, ".git"), "gitdir: fake\n");
@@ -135,7 +141,10 @@ test("collectRepoSessions rejects oversized session headers clearly", async () =
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-brainerd-sessions-"));
   const projectRoot = path.join(tempRoot, "repo");
   const sessionsRoot = path.join(tempRoot, "sessions");
-  const directory = path.join(sessionsRoot, `--${projectRoot.replaceAll("/", "-")}--`);
+  const directory = path.join(
+    sessionsRoot,
+    `--${projectRoot.replaceAll("\\", "-").replaceAll("/", "-").replaceAll(":", "-")}--`,
+  );
 
   await fs.mkdir(projectRoot, { recursive: true });
   await fs.writeFile(path.join(projectRoot, ".git"), "gitdir: fake\n");

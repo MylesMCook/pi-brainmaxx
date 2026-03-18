@@ -1,4 +1,4 @@
-# pi-brainerd Skill Reliability Notes
+# Brainerd Harness Surface Notes
 
 ## Status
 
@@ -6,27 +6,30 @@ Implemented in `v0.3.0`.
 
 ## Decision
 
-`/reflect` and `/ruminate` remain public skills.
+The canonical user-facing surfaces are now harness-prefixed:
 
-They are no longer treated as pure markdown instructions with generic file
-access. The extension now supplies a narrow SDK control layer around those
-skills:
+- Pi: `/pi-init`, `/pi-reflect`, `/pi-ruminate`
+- Codex: `codex-init`, `codex-reflect`, `codex-ruminate`
+- Claude: `claude-init`, `claude-reflect`, `claude-ruminate`
 
-- raw input interception for `/reflect`, `/ruminate`, `/skill:reflect`, and
-  `/skill:ruminate`
+Pi still uses a narrow extension control layer around its `pi-reflect` and
+`pi-ruminate` skills:
+
+- raw input interception for `/pi-reflect`, `/pi-ruminate`,
+  `/skill:pi-reflect`, and `/skill:pi-ruminate`
 - per-run tool narrowing with `setActiveTools()`
 - guarded internal tools for current-session extraction, repo history loading,
   rumination staging, staged preview retrieval, and safe brain writes
 - fallback summary messages when the model fails to print one
 
-`/brain-init` remains the only public extension command.
+`/pi-init` is the Pi setup command.
 
 ## Current Contract
 
-### `/reflect`
+### `/pi-reflect`
 
 - still invoked as a skill
-- the extension rewrites `/reflect` to `/skill:reflect`
+- the extension rewrites `/pi-reflect` to `/skill:pi-reflect`
 - the run gets only:
   - `read`
   - `find`
@@ -36,10 +39,10 @@ skills:
 - brain writes are only allowed through `brainerd_apply_changes`
 - the skill must end with a visible section that starts with `Brainerd summary:`
 
-### `/ruminate`
+### `/pi-ruminate`
 
 - still invoked as a skill
-- the extension rewrites `/ruminate` to `/skill:ruminate`
+- the extension rewrites `/pi-ruminate` to `/skill:pi-ruminate`
 - preview runs get only:
   - `read`
   - `find`
@@ -56,7 +59,7 @@ skills:
 - interactive Pi accepts a short plain-English confirmation like `yes` or
   `apply it`
 - rejection like `no` or `cancel` discards the staged preview and writes nothing
-- `pi -p "/ruminate"` stays preview-only and has no apply step
+- `pi -p "/pi-ruminate"` stays preview-only and has no apply step
 
 ## Guardrails
 

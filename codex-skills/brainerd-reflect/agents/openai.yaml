@@ -1,4 +1,0 @@
-interface:
-  display_name: "Brainerd Reflect"
-  short_description: "Write durable learnings into the repo brain"
-  default_prompt: "Use $brainerd-reflect to capture durable knowledge from the current Codex conversation into the repo-local brain."

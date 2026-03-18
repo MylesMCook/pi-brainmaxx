@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Ruminate"
+  short_description: "Mine older Codex sessions for missed durable memory"
+  default_prompt: "Use $codex-ruminate to review repo-scoped Codex session history, preview durable findings, and write only after explicit confirmation."

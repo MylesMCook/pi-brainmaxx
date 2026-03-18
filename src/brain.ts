@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   BRAIN_DIR,
   BRAIN_VERSION_FILE,
+  CLAUDE_IMPORTS_DIR,
   INDEX_ENTRYPOINT,
   LEGACY_VERSION_FILE,
   NOTES_DIR,
@@ -337,6 +338,18 @@ const readNotes = async (projectRoot: string): Promise<string[]> => {
     .sort((a, b) => a.localeCompare(b));
 };
 
+const readManagedImports = async (projectRoot: string, relativeRoot: string): Promise<string[]> => {
+  const importRoot = await resolveSafeRepoPath(projectRoot, relativeRoot);
+  if (!(await exists(importRoot))) {
+    return [];
+  }
+
+  return (await walkFiles(importRoot))
+    .filter((file) => file.endsWith(".md"))
+    .map((file) => toPortablePath(path.relative(path.join(projectRoot, "brain"), file)))
+    .sort((a, b) => a.localeCompare(b));
+};
+
 const buildPrinciplesEntrypoint = (principles: PrincipleDescriptor[]): string => {
   const lines = [
     "# Principles",
@@ -361,7 +374,7 @@ const buildPrinciplesEntrypoint = (principles: PrincipleDescriptor[]): string =>
   return lines.join("\n");
 };
 
-const buildIndexEntrypoint = (principles: PrincipleDescriptor[], notes: string[]): string => {
+const buildIndexEntrypoint = (principles: PrincipleDescriptor[], notes: string[], claudeImports: string[]): string => {
   const lines = [
     "# Brain",
     "",
@@ -396,6 +409,15 @@ const buildIndexEntrypoint = (principles: PrincipleDescriptor[], notes: string[]
     }
   }
 
+  if (claudeImports.length > 0) {
+    lines.push("", "## Imported Claude Memory", "");
+    lines.push("These files are managed imports from Claude auto memory. Distill durable learnings into notes or principles instead of editing the imports directly.");
+    lines.push("");
+    for (const managedImport of claudeImports) {
+      lines.push(`- [[${managedImport}]]`);
+    }
+  }
+
   lines.push("");
   return lines.join("\n");
 };
@@ -414,6 +436,7 @@ const writeIfChanged = async (projectRoot: string, relativePath: string, content
 const syncOwnedEntryPointsUnlocked = async (projectRoot: string, state: BrainState): Promise<BrainSyncResult> => {
   const principles = await readPrinciples(projectRoot);
   const notes = await readNotes(projectRoot);
+  const claudeImports = await readManagedImports(projectRoot, CLAUDE_IMPORTS_DIR);
   const updated: string[] = [];
   const skipped: string[] = [];
 
@@ -432,7 +455,7 @@ const syncOwnedEntryPointsUnlocked = async (projectRoot: string, state: BrainSta
   }
 
   if (state.ownedFiles.includes(INDEX_ENTRYPOINT)) {
-    if (await writeIfChanged(projectRoot, INDEX_ENTRYPOINT, buildIndexEntrypoint(principles, notes))) {
+    if (await writeIfChanged(projectRoot, INDEX_ENTRYPOINT, buildIndexEntrypoint(principles, notes, claudeImports))) {
       updated.push(INDEX_ENTRYPOINT);
     }
   } else {
@@ -487,7 +510,7 @@ export const writeNoteIfMissing = async (
   return withBrainLock(projectRoot, async () => {
     const state = await readBrainState(projectRoot);
     if (!state) {
-      throw new Error("No project brain found. Run /brain-init first.");
+      throw new Error("No project brain found. Run pi-init, codex-init, or claude-init first.");
     }
 
     const destination = await resolveSafeRepoPath(projectRoot, portablePath);
@@ -531,7 +554,7 @@ export const applyBrainChanges = async (
   return withBrainLock(projectRoot, async () => {
     const state = await readBrainState(projectRoot);
     if (!state) {
-      throw new Error("No project brain found. Run /brain-init first.");
+      throw new Error("No project brain found. Run pi-init, codex-init, or claude-init first.");
     }
 
     const changed: string[] = [];

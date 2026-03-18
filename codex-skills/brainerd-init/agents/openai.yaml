@@ -1,4 +1,0 @@
-interface:
-  display_name: "Brainerd Init"
-  short_description: "Initialize a repo brain for Codex"
-  default_prompt: "Use $brainerd-init to create the repo-local brain, install the managed AGENTS.md block, and preview or apply operational bootstrap."

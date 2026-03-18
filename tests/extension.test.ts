@@ -17,12 +17,6 @@ type RegisteredTool = {
   execute: (...args: any[]) => Promise<any>;
 };
 
-type CustomEntryRecord = {
-  type: "custom";
-  customType: string;
-  data?: unknown;
-};
-
 const BUILTIN_TOOL_NAMES = ["read", "bash", "edit", "write", "find", "grep", "ls"];
 
 const createApi = () => {
@@ -30,7 +24,6 @@ const createApi = () => {
   const tools = new Map<string, RegisteredTool>();
   const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<any> | any>>();
   const sentMessages: Array<{ message: { customType: string; content: string; display: boolean }; options?: unknown }> = [];
-  const customEntries: CustomEntryRecord[] = [];
   let activeTools = [...BUILTIN_TOOL_NAMES];
 
   const api = {
@@ -49,9 +42,7 @@ const createApi = () => {
     sendMessage(message: { customType: string; content: string; display: boolean }, options?: unknown) {
       sentMessages.push({ message, options });
     },
-    appendEntry(customType: string, data?: unknown) {
-      customEntries.push({ type: "custom", customType, data });
-    },
+    appendEntry() {},
     getActiveTools() {
       return [...activeTools];
     },
@@ -66,7 +57,7 @@ const createApi = () => {
     },
   };
 
-  return { api, commands, tools, handlers, sentMessages, customEntries, getActiveTools: () => [...activeTools] };
+  return { api, commands, tools, handlers, sentMessages, getActiveTools: () => [...activeTools] };
 };
 
 const tempRepo = async (): Promise<string> => {
@@ -87,10 +78,7 @@ const createSessionManager = (options?: {
   const branch = options?.branch ?? [];
   const entries = options?.entries ?? branch;
   return {
-    getBranch(fromId?: string) {
-      if (fromId !== undefined) {
-        return branch;
-      }
+    getBranch() {
       return branch;
     },
     getEntries() {
@@ -108,6 +96,8 @@ const createSessionManager = (options?: {
   };
 };
 
+const randomId = () => Math.random().toString(16).slice(2, 10);
+
 const branchMessage = (role: string, extra: Record<string, unknown> = {}) => ({
   type: "message",
   id: randomId(),
@@ -119,14 +109,12 @@ const branchMessage = (role: string, extra: Record<string, unknown> = {}) => ({
   },
 });
 
-const randomId = () => Math.random().toString(16).slice(2, 10);
-
-test("brain-context registers the public commands and internal tools", () => {
+test("brain-context registers pi-init and the internal Brainerd tools", () => {
   const { api, commands, tools } = createApi();
 
   brainContext(api as any);
 
-  assert.deepEqual([...commands.keys()].sort(), ["brain-init"]);
+  assert.deepEqual([...commands.keys()].sort(), ["pi-init"]);
   assert.deepEqual(
     [...tools.keys()].sort(),
     [
@@ -140,30 +128,26 @@ test("brain-context registers the public commands and internal tools", () => {
   );
 });
 
-test("reflect and ruminate stay package skills instead of extension commands", () => {
-  const { api, commands } = createApi();
+test("package skills expose the harness-prefixed Pi surfaces", () => {
   const packageSkills = loadSkillsFromDir({
     dir: path.join(packageRoot, "skills"),
     source: "path",
   });
 
-  brainContext(api as any);
-
-  assert.deepEqual([...commands.keys()], ["brain-init"]);
   assert.deepEqual(
     packageSkills.skills.map((skill) => skill.name).sort(),
-    ["reflect", "ruminate"],
+    ["pi-init", "pi-reflect", "pi-ruminate"],
   );
 });
 
-test("/brain-init command creates a project brain", async () => {
+test("/pi-init command creates a project brain", async () => {
   const { api, commands } = createApi();
   const repoRoot = await tempRepo();
   const notifications: Array<{ message: string; level: string | undefined }> = [];
 
   brainContext(api as any);
 
-  await commands.get("brain-init")?.handler("", {
+  await commands.get("pi-init")?.handler("", {
     cwd: repoRoot,
     hasUI: true,
     ui: {
@@ -180,7 +164,7 @@ test("/brain-init command creates a project brain", async () => {
   assert.match(notifications[1]?.message ?? "", /No concise operational content/);
 });
 
-test("/brain-init prints a bootstrap preview in non-interactive mode", async () => {
+test("/pi-init prints a bootstrap preview in non-interactive mode", async () => {
   const { api, commands } = createApi();
   const repoRoot = await tempRepo();
   const output: string[] = [];
@@ -193,7 +177,7 @@ test("/brain-init prints a bootstrap preview in non-interactive mode", async () 
   try {
     console.log = (message?: unknown) => output.push(String(message ?? ""));
     console.warn = (message?: unknown) => output.push(String(message ?? ""));
-    await commands.get("brain-init")?.handler("", {
+    await commands.get("pi-init")?.handler("", {
       cwd: repoRoot,
       hasUI: false,
       ui: { notify() {} },
@@ -209,39 +193,14 @@ test("/brain-init prints a bootstrap preview in non-interactive mode", async () 
   await assert.rejects(fs.access(path.join(repoRoot, "brain/notes")));
 });
 
-test("/brain-init applies bootstrap in non-interactive mode with --apply-bootstrap", async () => {
-  const { api, commands } = createApi();
-  const repoRoot = await tempRepo();
-  const output: string[] = [];
-
-  brainContext(api as any);
-  await fs.writeFile(path.join(repoRoot, "AGENTS.md"), "- Maestro handles delegated Linear repo work in this repo.\n");
-
-  const originalLog = console.log;
-  try {
-    console.log = (message?: unknown) => output.push(String(message ?? ""));
-    await commands.get("brain-init")?.handler("--apply-bootstrap", {
-      cwd: repoRoot,
-      hasUI: false,
-      ui: { notify() {} },
-    });
-  } finally {
-    console.log = originalLog;
-  }
-
-  const notes = await fs.readdir(path.join(repoRoot, "brain/notes"));
-  assert.equal(notes.length, 1);
-  assert.match(output.join("\n"), /Created brain\/notes\/.+-operations\.md/);
-});
-
-test("/brain-init reports unsupported arguments clearly", async () => {
+test("/pi-init reports unsupported arguments clearly", async () => {
   const { api, commands } = createApi();
   const repoRoot = await tempRepo();
   const notifications: Array<{ message: string; level: string | undefined }> = [];
 
   brainContext(api as any);
 
-  await commands.get("brain-init")?.handler("--bogus", {
+  await commands.get("pi-init")?.handler("--bogus", {
     cwd: repoRoot,
     hasUI: true,
     ui: {
@@ -252,7 +211,7 @@ test("/brain-init reports unsupported arguments clearly", async () => {
   });
 
   assert.equal(notifications.length, 1);
-  assert.match(notifications[0]?.message ?? "", /Unsupported \/brain-init arguments/);
+  assert.match(notifications[0]?.message ?? "", /Unsupported \/pi-init arguments/);
   assert.equal(notifications[0]?.level, "warning");
 });
 
@@ -261,7 +220,7 @@ test("before_agent_start injects the ambient brain context when a brain exists",
   const repoRoot = await tempRepo();
 
   brainContext(api as any);
-  await commands.get("brain-init")?.handler("", {
+  await commands.get("pi-init")?.handler("", {
     cwd: repoRoot,
     hasUI: true,
     ui: { notify() {} },
@@ -276,40 +235,45 @@ test("before_agent_start injects the ambient brain context when a brain exists",
   assert.match(result?.message?.content ?? "", /# brain\/principles\.md/);
 });
 
-test("input hook rewrites /reflect to /skill:reflect and narrows tools for the run", async () => {
+test("input hook rewrites /pi-reflect to /skill:pi-reflect and narrows tools for the run", async () => {
   const { api, handlers, getActiveTools } = createApi();
+  const repoRoot = await tempRepo();
+
   brainContext(api as any);
 
   const inputHandler = handlers.get("input")?.[0];
   const result = await inputHandler?.(
-    { text: "/reflect", source: "interactive" },
-    { isIdle: () => true, hasUI: true, sessionManager: createSessionManager({ leafId: "leaf-1" }), ui: { notify() {} } },
+    { text: "/pi-reflect", source: "interactive" },
+    { cwd: repoRoot, isIdle: () => true, hasUI: true, sessionManager: createSessionManager({ leafId: "leaf-1" }), ui: { notify() {} } },
   );
 
-  assert.deepEqual(result, { action: "transform", text: "/skill:reflect" });
+  assert.deepEqual(result, { action: "transform", text: "/skill:pi-reflect" });
   assert.deepEqual(getActiveTools().sort(), ["brainerd_apply_changes", "brainerd_current_session", "find", "grep", "read"]);
 });
 
-test("input hook rewrites /ruminate to /skill:ruminate and restores tools after agent_end", async () => {
+test("input hook rewrites /pi-ruminate to /skill:pi-ruminate and restores tools after agent_end", async () => {
   const { api, handlers, getActiveTools, sentMessages } = createApi();
+  const repoRoot = await tempRepo();
+
   brainContext(api as any);
 
   const inputHandler = handlers.get("input")?.[0];
   const endHandler = handlers.get("agent_end")?.[0];
-  await inputHandler?.(
-    { text: "/ruminate", source: "interactive" },
-    { isIdle: () => true, hasUI: true, sessionManager: createSessionManager({ leafId: "leaf-2" }), ui: { notify() {} } },
+  const result = await inputHandler?.(
+    { text: "/pi-ruminate", source: "interactive" },
+    { cwd: repoRoot, isIdle: () => true, hasUI: true, sessionManager: createSessionManager({ leafId: "leaf-2" }), ui: { notify() {} } },
   );
 
+  assert.deepEqual(result, { action: "transform", text: "/skill:pi-ruminate" });
   assert.deepEqual(getActiveTools().sort(), ["brainerd_repo_sessions", "brainerd_stage_ruminate", "find", "grep", "read"]);
 
-  await endHandler?.({ messages: [{ role: "assistant", content: [{ type: "text", text: "Done" }] }] }, {});
+  await endHandler?.({ messages: [{ role: "assistant", content: [{ type: "text", text: "Done" }] }] }, { hasUI: true });
 
   assert.deepEqual(getActiveTools(), BUILTIN_TOOL_NAMES);
   assert.match(sentMessages[0]?.message.content ?? "", /Brainerd summary:/);
 });
 
-test("brainerd internal tools are blocked outside explicit skill runs", async () => {
+test("brainerd internal tools are blocked outside explicit Pi skill runs", async () => {
   const { api, handlers } = createApi();
   brainContext(api as any);
 
@@ -317,29 +281,13 @@ test("brainerd internal tools are blocked outside explicit skill runs", async ()
 
   assert.deepEqual(result, {
     block: true,
-    reason: "brainerd internal tool brainerd_apply_changes is only available during an explicit /reflect or /ruminate run.",
-  });
-});
-
-test("brainerd tool guard blocks tools that do not match the active run mode", async () => {
-  const { api, handlers } = createApi();
-  brainContext(api as any);
-
-  await handlers.get("input")?.[0]?.(
-    { text: "/ruminate", source: "interactive" },
-    { isIdle: () => true, hasUI: true, sessionManager: createSessionManager({ leafId: "leaf-4" }), ui: { notify() {} } },
-  );
-
-  const result = await handlers.get("tool_call")?.[0]?.({ toolName: "brainerd_apply_changes" }, {});
-
-  assert.deepEqual(result, {
-    block: true,
-    reason: "brainerd skill run active: brainerd_apply_changes is not available in ruminate-preview.",
+    reason: "brainerd internal tool brainerd_apply_changes is only available during an explicit /pi-reflect or /pi-ruminate run.",
   });
 });
 
 test("brainerd_current_session returns the pre-invocation branch transcript", async () => {
   const { api, handlers, tools } = createApi();
+  const repoRoot = await tempRepo();
   brainContext(api as any);
 
   const branch = [
@@ -357,15 +305,15 @@ test("brainerd_current_session returns the pre-invocation branch transcript", as
   ];
 
   await handlers.get("input")?.[0]?.(
-    { text: "/reflect", source: "interactive" },
-    { isIdle: () => true, hasUI: true, sessionManager: createSessionManager({ branch, leafId: "leaf-3" }), ui: { notify() {} } },
+    { text: "/pi-reflect", source: "interactive" },
+    { cwd: repoRoot, isIdle: () => true, hasUI: true, sessionManager: createSessionManager({ branch, leafId: "leaf-3" }), ui: { notify() {} } },
   );
 
   const result = await tools.get("brainerd_current_session")?.execute("tool", {}, undefined, undefined, {
-    cwd: "/tmp/project",
+    cwd: repoRoot,
     sessionManager: createSessionManager({
       branch,
-      header: { cwd: "/tmp/project", timestamp: "2026-03-16T00:00:00.000Z" },
+      header: { cwd: repoRoot, timestamp: "2026-03-16T00:00:00.000Z" },
       leafId: "leaf-3",
     }),
   });
@@ -375,7 +323,7 @@ test("brainerd_current_session returns the pre-invocation branch transcript", as
   assert.match(result?.content?.[0]?.text ?? "", /Tool read result: brain\/index\.md contents/);
 });
 
-test("brainerd_repo_sessions tool returns repo-scoped session history", async () => {
+test("brainerd_repo_sessions returns repo-scoped Pi session history", async () => {
   const { api, commands, tools } = createApi();
   const repoRoot = await tempRepo();
   const homeRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-brainerd-tool-home-"));
@@ -383,7 +331,6 @@ test("brainerd_repo_sessions tool returns repo-scoped session history", async ()
   const sessionFile = path.join(sessionsRoot, "older.jsonl");
 
   await fs.mkdir(sessionsRoot, { recursive: true });
-
   await fs.writeFile(
     sessionFile,
     [
@@ -395,15 +342,20 @@ test("brainerd_repo_sessions tool returns repo-scoped session history", async ()
   );
 
   brainContext(api as any);
-  await commands.get("brain-init")?.handler("", {
+  await commands.get("pi-init")?.handler("", {
     cwd: repoRoot,
     hasUI: true,
     ui: { notify() {} },
   });
 
   const originalHome = process.env.HOME;
+  const originalUserProfile = process.env.USERPROFILE;
+  const originalHomeDrive = process.env.HOMEDRIVE;
+  const originalHomePath = process.env.HOMEPATH;
   process.env.HOME = homeRoot;
-
+  process.env.USERPROFILE = homeRoot;
+  process.env.HOMEDRIVE = path.parse(homeRoot).root.replace(/\\$/, "").slice(0, 2);
+  process.env.HOMEPATH = homeRoot.slice(process.env.HOMEDRIVE.length);
   try {
     const result = await tools.get("brainerd_repo_sessions")?.execute(
       "tool",
@@ -420,14 +372,23 @@ test("brainerd_repo_sessions tool returns repo-scoped session history", async ()
     assert.match(result?.content?.[0]?.text ?? "", /User: Remember this/);
   } finally {
     process.env.HOME = originalHome;
+    process.env.USERPROFILE = originalUserProfile;
+    process.env.HOMEDRIVE = originalHomeDrive;
+    process.env.HOMEPATH = originalHomePath;
   }
 });
 
-test("brainerd_stage_ruminate stores a recoverable preview and confirm transforms into apply mode", async () => {
-  const { api, handlers, tools, customEntries, getActiveTools } = createApi();
-  brainContext(api as any);
-
+test("brainerd_stage_ruminate writes the Pi stage file and confirm transforms into apply mode", async () => {
+  const { api, commands, handlers, tools, getActiveTools } = createApi();
   const repoRoot = await tempRepo();
+
+  brainContext(api as any);
+  await commands.get("pi-init")?.handler("", {
+    cwd: repoRoot,
+    hasUI: true,
+    ui: { notify() {} },
+  });
+
   const stageResult = await tools.get("brainerd_stage_ruminate")?.execute(
     "tool",
     {
@@ -440,48 +401,53 @@ test("brainerd_stage_ruminate stores a recoverable preview and confirm transform
     { cwd: repoRoot },
   );
 
-  assert.equal(customEntries.length, 1);
   assert.match(stageResult?.content?.[0]?.text ?? "", /Staged rumination preview/);
+  assert.ok(await fs.stat(path.join(repoRoot, "brain/.pi-ruminate-stage.json")));
 
-  const inputHandler = handlers.get("input")?.[0];
-  const result = await inputHandler?.(
+  const result = await handlers.get("input")?.[0]?.(
     { text: "yes", source: "interactive" },
     {
+      cwd: repoRoot,
       isIdle: () => true,
       hasUI: true,
-      sessionManager: createSessionManager({ branch: customEntries, entries: customEntries }),
+      sessionManager: createSessionManager({ leafId: "leaf-4" }),
       ui: { notify() {} },
     },
   );
 
-  assert.deepEqual(result, { action: "transform", text: "/skill:ruminate" });
+  assert.deepEqual(result, { action: "transform", text: "/skill:pi-ruminate" });
   assert.deepEqual(getActiveTools().sort(), ["brainerd_apply_changes", "brainerd_get_staged_ruminate", "find", "grep", "read"]);
 });
 
-test("ruminate reject follow-up clears the stage without triggering a model turn", async () => {
-  const { api, handlers, sentMessages } = createApi();
-  brainContext(api as any);
+test("ruminate reject follow-up discards the staged Pi preview without a model turn", async () => {
+  const { api, commands, handlers, sentMessages, tools } = createApi();
+  const repoRoot = await tempRepo();
 
-  const staged = {
-    type: "custom",
-    customType: "brainerd-ruminate-stage",
-    data: {
-      stageId: "stage-1",
-      repoRoot: "/tmp/project",
-      createdAt: "2026-03-16T00:00:00.000Z",
+  brainContext(api as any);
+  await commands.get("pi-init")?.handler("", {
+    cwd: repoRoot,
+    hasUI: true,
+    ui: { notify() {} },
+  });
+  await tools.get("brainerd_stage_ruminate")?.execute(
+    "tool",
+    {
       findingsSummary: "Remote workflow repeated.",
       rationale: "Durable.",
       changes: [{ path: "brain/notes/remote-workflow.md", content: "# Remote Workflow\n" }],
-      status: "staged",
     },
-  };
+    undefined,
+    undefined,
+    { cwd: repoRoot },
+  );
 
   const result = await handlers.get("input")?.[0]?.(
     { text: "no", source: "interactive" },
     {
+      cwd: repoRoot,
       isIdle: () => true,
       hasUI: true,
-      sessionManager: createSessionManager({ branch: [staged], entries: [staged] }),
+      sessionManager: createSessionManager(),
       ui: { notify() {} },
     },
   );
@@ -491,35 +457,39 @@ test("ruminate reject follow-up clears the stage without triggering a model turn
 });
 
 test("ruminate confirm follow-up in print mode stays preview-only", async () => {
-  const { api, handlers } = createApi();
-  brainContext(api as any);
+  const { api, commands, handlers, tools } = createApi();
+  const repoRoot = await tempRepo();
 
-  const staged = {
-    type: "custom",
-    customType: "brainerd-ruminate-stage",
-    data: {
-      stageId: "stage-print",
-      repoRoot: "/tmp/project",
-      createdAt: "2026-03-16T00:00:00.000Z",
+  brainContext(api as any);
+  await commands.get("pi-init")?.handler("", {
+    cwd: repoRoot,
+    hasUI: true,
+    ui: { notify() {} },
+  });
+  await tools.get("brainerd_stage_ruminate")?.execute(
+    "tool",
+    {
       findingsSummary: "Durable pattern found.",
       rationale: "Durable.",
       changes: [{ path: "brain/notes/example.md", content: "# Example\n" }],
-      status: "staged",
     },
-  };
+    undefined,
+    undefined,
+    { cwd: repoRoot },
+  );
 
   const output: string[] = [];
   const originalLog = console.log;
   let result: unknown;
-
   try {
     console.log = (message?: unknown) => output.push(String(message ?? ""));
     result = await handlers.get("input")?.[0]?.(
       { text: "yes", source: "interactive" },
       {
+        cwd: repoRoot,
         isIdle: () => true,
         hasUI: false,
-        sessionManager: createSessionManager({ branch: [staged], entries: [staged] }),
+        sessionManager: createSessionManager(),
         ui: { notify() {} },
       },
     );
@@ -528,49 +498,46 @@ test("ruminate confirm follow-up in print mode stays preview-only", async () => 
   }
 
   assert.deepEqual(result, { action: "handled" });
-  assert.match(output.join("\n"), /pi -p \"\/ruminate\" has no apply step/i);
+  assert.match(output.join("\n"), /pi -p \"\/pi-ruminate\" has no apply step/i);
   assert.match(output.join("\n"), /no brain changes were written/i);
 });
 
-test("brainerd_apply_changes enforces brain-only targets and syncs entrypoints", async () => {
-  const { api, commands, tools, customEntries } = createApi();
+test("brainerd_apply_changes applies a staged Pi rumination preview and syncs entrypoints", async () => {
+  const { api, commands, tools } = createApi();
   const repoRoot = await tempRepo();
 
   brainContext(api as any);
-  await commands.get("brain-init")?.handler("", {
+  await commands.get("pi-init")?.handler("", {
     cwd: repoRoot,
     hasUI: true,
     ui: { notify() {} },
   });
 
-  const stage = {
-    type: "custom",
-    customType: "brainerd-ruminate-stage",
-    data: {
-      stageId: "stage-apply",
-      repoRoot,
-      createdAt: "2026-03-16T00:00:00.000Z",
+  const staged = await tools.get("brainerd_stage_ruminate")?.execute(
+    "tool",
+    {
       findingsSummary: "Remote workflow repeated.",
       rationale: "Durable.",
       changes: [{ path: "brain/notes/remote-workflow.md", content: "# Remote Workflow\n\nUse tmux first.\n" }],
-      status: "staged",
     },
-  };
+    undefined,
+    undefined,
+    { cwd: repoRoot },
+  );
 
   const result = await tools.get("brainerd_apply_changes")?.execute(
     "tool",
-    { stageId: "stage-apply" },
+    { stageId: staged?.details?.stageId },
     undefined,
     undefined,
     {
       cwd: repoRoot,
-      sessionManager: createSessionManager({ branch: [stage], entries: [stage] }),
+      sessionManager: createSessionManager(),
     },
   );
 
   assert.match(result?.content?.[0]?.text ?? "", /Changed: brain\/notes\/remote-workflow\.md/);
   assert.ok(await fs.stat(path.join(repoRoot, "brain/notes/remote-workflow.md")));
-  assert.equal(customEntries.length, 1);
 });
 
 test("brainerd_apply_changes rejects paths outside brain notes and principles", async () => {
@@ -578,7 +545,7 @@ test("brainerd_apply_changes rejects paths outside brain notes and principles", 
   const repoRoot = await tempRepo();
 
   brainContext(api as any);
-  await commands.get("brain-init")?.handler("", {
+  await commands.get("pi-init")?.handler("", {
     cwd: repoRoot,
     hasUI: true,
     ui: { notify() {} },

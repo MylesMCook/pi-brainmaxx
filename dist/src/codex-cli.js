@@ -9,27 +9,27 @@ import { applyCodexRuminateStage, discardCodexRuminateStage, getCodexRuminateSta
 import { resolveProjectRoot } from "./project-root.js";
 const usage = () => [
     "Usage:",
-    "  scripts/brainerd-codex.sh init [--apply-bootstrap] [--cwd <path>]",
-    "  scripts/brainerd-codex.sh sync [--cwd <path>]",
-    "  scripts/brainerd-codex.sh repo-sessions [--cwd <path>] [--max-sessions <n>] [--max-chars-per-session <n>] [--min-sessions <n>] [--current-thread-id <id>]",
-    "  scripts/brainerd-codex.sh current-session [--cwd <path>] [--current-thread-id <id>] [--max-chars <n>]",
-    "  scripts/brainerd-codex.sh apply-changes [--cwd <path>] [--input <json-file>]",
-    "  scripts/brainerd-codex.sh stage-ruminate [--cwd <path>] [--input <json-file>]",
-    "  scripts/brainerd-codex.sh staged-ruminate [--cwd <path>]",
-    "  scripts/brainerd-codex.sh apply-staged-ruminate [--cwd <path>] [--stage-id <id>]",
-    "  scripts/brainerd-codex.sh discard-staged-ruminate [--cwd <path>]",
-    "  scripts/brainerd-codex.sh help",
+    "  Windows: scripts\\brainerd-codex.cmd init [--apply-bootstrap] [--cwd <path>]",
+    "  POSIX:   scripts/brainerd-codex.sh init [--apply-bootstrap] [--cwd <path>]",
+    "  Windows: scripts\\brainerd-codex.cmd sync [--cwd <path>]",
+    "  POSIX:   scripts/brainerd-codex.sh sync [--cwd <path>]",
+    "  Windows: scripts\\brainerd-codex.cmd repo-sessions [--cwd <path>] [--max-sessions <n>] [--max-chars-per-session <n>] [--min-sessions <n>] [--current-thread-id <id>]",
+    "  POSIX:   scripts/brainerd-codex.sh repo-sessions [--cwd <path>] [--max-sessions <n>] [--max-chars-per-session <n>] [--min-sessions <n>] [--current-thread-id <id>]",
+    "  Windows: scripts\\brainerd-codex.cmd current-session [--cwd <path>] [--current-thread-id <id>] [--max-chars <n>]",
+    "  POSIX:   scripts/brainerd-codex.sh current-session [--cwd <path>] [--current-thread-id <id>] [--max-chars <n>]",
+    "  Windows: scripts\\brainerd-codex.cmd apply-changes [--cwd <path>] [--input <json-file>]",
+    "  POSIX:   scripts/brainerd-codex.sh apply-changes [--cwd <path>] [--input <json-file>]",
+    "  Windows: scripts\\brainerd-codex.cmd stage-ruminate [--cwd <path>] [--input <json-file>]",
+    "  POSIX:   scripts/brainerd-codex.sh stage-ruminate [--cwd <path>] [--input <json-file>]",
+    "  Windows: scripts\\brainerd-codex.cmd staged-ruminate [--cwd <path>]",
+    "  POSIX:   scripts/brainerd-codex.sh staged-ruminate [--cwd <path>]",
+    "  Windows: scripts\\brainerd-codex.cmd apply-staged-ruminate [--cwd <path>] [--stage-id <id>]",
+    "  POSIX:   scripts/brainerd-codex.sh apply-staged-ruminate [--cwd <path>] [--stage-id <id>]",
+    "  Windows: scripts\\brainerd-codex.cmd discard-staged-ruminate [--cwd <path>]",
+    "  POSIX:   scripts/brainerd-codex.sh discard-staged-ruminate [--cwd <path>]",
 ].join("\n");
-const formatArgumentError = (message) => new Error(`${message}\n\n${usage()}`);
 const parseArgs = (argv) => {
     const [command, ...rest] = argv;
-    if (!command || command === "help" || command === "--help" || command === "-h") {
-        return {
-            command: "help",
-            cwd: process.cwd(),
-            applyBootstrap: false,
-        };
-    }
     if (command !== "init" &&
         command !== "sync" &&
         command !== "repo-sessions" &&
@@ -39,7 +39,7 @@ const parseArgs = (argv) => {
         command !== "staged-ruminate" &&
         command !== "apply-staged-ruminate" &&
         command !== "discard-staged-ruminate") {
-        throw formatArgumentError(`Unsupported command: ${command}`);
+        throw new Error(usage());
     }
     let cwd = process.cwd();
     let applyBootstrap = false;
@@ -66,7 +66,7 @@ const parseArgs = (argv) => {
             token === "--input" ||
             token === "--stage-id") &&
             !value) {
-            throw formatArgumentError(`Missing value for ${token}`);
+            throw new Error(`Missing value for ${token}`);
         }
         switch (token) {
             case "--cwd":
@@ -102,7 +102,7 @@ const parseArgs = (argv) => {
                 index += 1;
                 break;
             default:
-                throw formatArgumentError(`Unsupported argument: ${token}`);
+                throw new Error(`Unsupported argument: ${token}`);
         }
     }
     return {
@@ -318,9 +318,6 @@ const printDiscardStagedRuminate = async (cwd) => {
 const main = async () => {
     const args = parseArgs(process.argv.slice(2));
     switch (args.command) {
-        case "help":
-            console.log(usage());
-            return;
         case "init":
             await printInit(args.cwd, args.applyBootstrap);
             return;

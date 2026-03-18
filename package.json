@@ -1,7 +1,7 @@
 {
   "name": "@mmcook/pi-brainerd",
   "version": "0.3.0",
-  "description": "Brainerd for Pi: repo-local memory, reflection, and session-history rumination",
+  "description": "Brainerd: repo-local memory, reflection, and session-history rumination across Pi, Codex, and Claude",
   "type": "module",
   "author": "Myles Cook <mylesmcook@gmail.com>",
   "license": "MIT",
@@ -19,6 +19,7 @@
     "pi-brainerd",
     "pi",
     "codex",
+    "claude",
     "project-brain",
     "repo-memory"
   ],
@@ -37,6 +38,7 @@
     "AGENTS.md",
     "agents",
     "brain",
+    "claude-skills",
     "codex-skills",
     "dist",
     "scripts",

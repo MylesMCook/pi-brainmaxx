@@ -33,6 +33,7 @@ test("stageCodexRuminate persists a staged preview under brain/", async () => {
   assert.ok(persisted);
   assert.equal(persisted?.stageId, stage.stageId);
   assert.equal(persisted?.changes[0]?.path, "brain/notes/brain-style.md");
+  assert.ok(await fs.stat(path.join(projectRoot, "brain/.codex-ruminate-stage.json")));
 });
 
 test("applyCodexRuminateStage applies the staged proposal and updates its status", async () => {

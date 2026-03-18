@@ -30,8 +30,11 @@ export const renderCodexAgentsBlock = () => [
     "This repo uses Brainerd.",
     "Before non-trivial repo work, read `brain/index.md` and `brain/principles.md`.",
     "Treat them as durable repo memory. Edit linked principle files or notes, not",
-    "the generated entrypoints themselves. Use explicit Brainerd actions for",
-    "init, reflect, or ruminate; do not perform memory writes automatically.",
+    "the generated entrypoints themselves. Use the harness-specific Brainerd",
+    "actions instead of legacy aliases: `pi-init`, `pi-reflect`, `pi-ruminate`,",
+    "`codex-init`, `codex-reflect`, `codex-ruminate`, `claude-init`,",
+    "`claude-reflect`, and `claude-ruminate`. Do not perform memory writes",
+    "automatically.",
     BRAINERD_AGENTS_BLOCK_END,
 ].join("\n");
 export const stripCodexManagedBlock = (content) => {
@@ -50,7 +53,7 @@ export const updateCodexAgentsContent = (content) => {
     }
     const blocks = findManagedBlocks(content);
     if (blocks.length > 1) {
-        throw new Error(`Multiple Brainerd managed blocks found in ${AGENTS_FILE}. Clean them up manually before re-running brainerd-init.`);
+        throw new Error(`Multiple Brainerd managed blocks found in ${AGENTS_FILE}. Clean them up manually before re-running the matching harness init command.`);
     }
     const normalizedContent = normalizeTrailingNewline(content);
     if (blocks.length === 1) {

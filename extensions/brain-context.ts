@@ -1,5 +1,4 @@
 import path from "node:path";
-import { randomUUID } from "node:crypto";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { applyOperationalBootstrap, planOperationalBootstrap } from "../src/bootstrap.js";
@@ -12,13 +11,19 @@ import {
 } from "../src/brain.js";
 import { collectCurrentSessionSnapshot } from "../src/current-session.js";
 import { buildInjectedBrainMessage } from "../src/injection.js";
+import {
+  applyPiRuminateStage,
+  discardPiRuminateStage,
+  getPiRuminateStage,
+  stagePiRuminate,
+  type PiRuminateStage,
+} from "../src/pi-stage.js";
 import { findGitRoot, resolveProjectRoot } from "../src/project-root.js";
 import { collectRepoSessions } from "../src/sessions.js";
 
 const APPLY_BOOTSTRAP_FLAG = "--apply-bootstrap";
 const BRAINTYPE_CONTEXT = "brainerd-context";
 const BRAINTYPE_STATUS = "brainerd-status";
-const BRAINTYPE_STAGE = "brainerd-ruminate-stage";
 const SUMMARY_MARKER = "Brainerd summary:";
 
 const BUILTIN_DEFAULT_TOOLS = ["read", "bash", "edit", "write", "find", "grep", "ls"];
@@ -54,17 +59,7 @@ type RunResult = {
   syncedFiles: string[];
 };
 
-type RuminateStage = {
-  stageId: string;
-  repoRoot: string;
-  createdAt: string;
-  findingsSummary: string;
-  rationale: string;
-  changes: BrainChange[];
-  status: "staged" | "applied" | "discarded";
-  changedFiles?: string[];
-  syncedFiles?: string[];
-};
+type RuminateStage = PiRuminateStage;
 
 type SessionManagerLike = {
   getBranch(fromId?: string): Array<any>;
@@ -95,7 +90,7 @@ const report = (
   console.log(message);
 };
 
-const parseBrainInitArgs = (args: string): { applyBootstrap: boolean } => {
+const parsePiInitArgs = (args: string): { applyBootstrap: boolean } => {
   const tokens = args
     .trim()
     .split(/\s+/)
@@ -110,7 +105,7 @@ const parseBrainInitArgs = (args: string): { applyBootstrap: boolean } => {
     return { applyBootstrap: true };
   }
 
-  throw new Error(`Unsupported /brain-init arguments: ${tokens.join(" ")}. Supported: ${APPLY_BOOTSTRAP_FLAG}`);
+  throw new Error(`Unsupported /pi-init arguments: ${tokens.join(" ")}. Supported: ${APPLY_BOOTSTRAP_FLAG}`);
 };
 
 const formatBrainInitSummary = (projectRoot: string, created: string[], synced: string[]): string => {
@@ -149,18 +144,18 @@ const getToolsForMode = (mode: RunMode): string[] => {
 const parseSkillInvocation = (text: string): { mode: RunMode; transformed: string | null } | null => {
   const trimmed = text.trim();
 
-  if (/^\/reflect(?:\s+.*)?$/u.test(trimmed)) {
-    const args = trimmed.slice("/reflect".length).trim();
-    return { mode: "reflect", transformed: `/skill:reflect${args ? ` ${args}` : ""}` };
+  if (/^\/pi-reflect(?:\s+.*)?$/u.test(trimmed)) {
+    const args = trimmed.slice("/pi-reflect".length).trim();
+    return { mode: "reflect", transformed: `/skill:pi-reflect${args ? ` ${args}` : ""}` };
   }
-  if (/^\/skill:reflect(?:\s+.*)?$/u.test(trimmed)) {
+  if (/^\/skill:pi-reflect(?:\s+.*)?$/u.test(trimmed)) {
     return { mode: "reflect", transformed: null };
   }
-  if (/^\/ruminate(?:\s+.*)?$/u.test(trimmed)) {
-    const args = trimmed.slice("/ruminate".length).trim();
-    return { mode: "ruminate-preview", transformed: `/skill:ruminate${args ? ` ${args}` : ""}` };
+  if (/^\/pi-ruminate(?:\s+.*)?$/u.test(trimmed)) {
+    const args = trimmed.slice("/pi-ruminate".length).trim();
+    return { mode: "ruminate-preview", transformed: `/skill:pi-ruminate${args ? ` ${args}` : ""}` };
   }
-  if (/^\/skill:ruminate(?:\s+.*)?$/u.test(trimmed)) {
+  if (/^\/skill:pi-ruminate(?:\s+.*)?$/u.test(trimmed)) {
     return { mode: "ruminate-preview", transformed: null };
   }
 
@@ -189,42 +184,6 @@ const lastAssistantText = (messages: Array<any>): string => {
     }
   }
   return "";
-};
-
-const getLatestRuminateStage = (entries: Array<any>): RuminateStage | null => {
-  for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entry = entries[index];
-    if (entry?.type !== "custom" || entry.customType !== BRAINTYPE_STAGE) {
-      continue;
-    }
-    const data = entry.data as Partial<RuminateStage> | undefined;
-    if (
-      !data ||
-      typeof data.stageId !== "string" ||
-      typeof data.repoRoot !== "string" ||
-      typeof data.createdAt !== "string" ||
-      typeof data.findingsSummary !== "string" ||
-      typeof data.rationale !== "string" ||
-      !Array.isArray(data.changes) ||
-      (data.status !== "staged" && data.status !== "applied" && data.status !== "discarded")
-    ) {
-      continue;
-    }
-    return {
-      stageId: data.stageId,
-      repoRoot: data.repoRoot,
-      createdAt: data.createdAt,
-      findingsSummary: data.findingsSummary,
-      rationale: data.rationale,
-      changes: data.changes
-        .filter((change): change is BrainChange => Boolean(change && typeof change.path === "string" && typeof change.content === "string"))
-        .map((change) => ({ path: change.path, content: change.content })),
-      status: data.status,
-      changedFiles: Array.isArray(data.changedFiles) ? data.changedFiles.filter((item): item is string => typeof item === "string") : [],
-      syncedFiles: Array.isArray(data.syncedFiles) ? data.syncedFiles.filter((item): item is string => typeof item === "string") : [],
-    };
-  }
-  return null;
 };
 
 const emitStatus = (pi: ExtensionAPI, content: string, hasUI = true): void => {
@@ -270,7 +229,7 @@ const formatRunSummary = (result: RunResult | null): string => {
 const renderRunInstructions = (mode: RunMode, stage: RuminateStage | null): string => {
   if (mode === "reflect") {
     return [
-      "[brainerd reflect run]",
+      "[brainerd pi-reflect run]",
       "Use only read/find/grep plus brainerd_current_session and brainerd_apply_changes.",
       "Do not use generic write, edit, or bash tools.",
       "Decide the smallest durable brain change, apply it with brainerd_apply_changes, and end with a visible section that starts exactly with 'Brainerd summary:'.",
@@ -279,7 +238,7 @@ const renderRunInstructions = (mode: RunMode, stage: RuminateStage | null): stri
 
   if (mode === "ruminate-preview") {
     return [
-      "[brainerd ruminate preview run]",
+      "[brainerd pi-ruminate preview run]",
       "Use brainerd_repo_sessions, then stage a preview with brainerd_stage_ruminate.",
       "Do not write directly to files in this phase.",
       "End with a visible section that starts exactly with 'Brainerd summary:' and state explicitly that no brain changes were written yet.",
@@ -287,23 +246,13 @@ const renderRunInstructions = (mode: RunMode, stage: RuminateStage | null): stri
   }
 
   return [
-    "[brainerd ruminate apply run]",
+    "[brainerd pi-ruminate apply run]",
     stage ? `Apply exactly staged preview ${stage.stageId}.` : "If no staged preview exists, stop and report that no brain changes were written.",
     "Call brainerd_get_staged_ruminate first, then apply that staged proposal with brainerd_apply_changes.",
     "Do not invent new changes in apply mode.",
     "End with a visible section that starts exactly with 'Brainerd summary:'.",
   ].join("\n");
 };
-
-const createStageEntry = (projectRoot: string, summary: string, rationale: string, changes: BrainChange[]): RuminateStage => ({
-  stageId: randomUUID(),
-  repoRoot: projectRoot,
-  createdAt: new Date().toISOString(),
-  findingsSummary: summary.trim(),
-  rationale: rationale.trim(),
-  changes: changes.map((change) => ({ path: change.path, content: change.content })),
-  status: "staged",
-});
 
 export default function brainContext(pi: ExtensionAPI): void {
   let activeRun: ActiveRun | null = null;
@@ -327,7 +276,7 @@ export default function brainContext(pi: ExtensionAPI): void {
     pi.setActiveTools(getToolsForMode(mode));
   };
 
-  pi.registerCommand("brain-init", {
+  pi.registerCommand("pi-init", {
     description: "Initialize a project-local brain in the current repo",
     getArgumentCompletions: (prefix) => {
       if (APPLY_BOOTSTRAP_FLAG.startsWith(prefix)) {
@@ -337,13 +286,13 @@ export default function brainContext(pi: ExtensionAPI): void {
     },
     handler: async (args, ctx) => {
       try {
-        const { applyBootstrap } = parseBrainInitArgs(args);
+        const { applyBootstrap } = parsePiInitArgs(args);
         const gitRoot = await findGitRoot(ctx.cwd);
         const projectRoot = await resolveProjectRoot(ctx.cwd);
         const result = await initBrain(projectRoot);
 
         if (!gitRoot) {
-          report("No .git directory was found. /brain-init used the current directory as the project root.", "warning", ctx);
+          report("No .git directory was found. /pi-init used the current directory as the project root.", "warning", ctx);
         }
 
         report(formatBrainInitSummary(projectRoot, result.created, result.synced), "info", ctx);
@@ -358,7 +307,7 @@ export default function brainContext(pi: ExtensionAPI): void {
         if (!ctx.hasUI) {
           console.log(preview);
           if (!applyBootstrap) {
-            console.log(`Re-run /brain-init ${APPLY_BOOTSTRAP_FLAG} to create this note.`);
+            console.log(`Re-run /pi-init ${APPLY_BOOTSTRAP_FLAG} to create this note.`);
             return;
           }
 
@@ -393,7 +342,7 @@ export default function brainContext(pi: ExtensionAPI): void {
         report(applied.reason, applied.status === "exists" ? "info" : "warning", ctx);
       } catch (error) {
         const message = (error as Error).message;
-        if (message.startsWith("Unsupported /brain-init arguments:")) {
+        if (message.startsWith("Unsupported /pi-init arguments:")) {
           report(message, "warning", ctx);
           return;
         }
@@ -408,7 +357,8 @@ export default function brainContext(pi: ExtensionAPI): void {
     }
 
     const sessionManager = ctx.sessionManager as SessionManagerLike;
-    const staged = getLatestRuminateStage(sessionManager.getBranch());
+    const projectRoot = await resolveProjectRoot(ctx.cwd);
+    const staged = await getPiRuminateStage(projectRoot);
     const normalized = normalizeReply(event.text);
     const skillInvocation = parseSkillInvocation(event.text);
 
@@ -425,7 +375,7 @@ export default function brainContext(pi: ExtensionAPI): void {
             [
               SUMMARY_MARKER,
               "- preview-only: yes",
-              '- pi -p "/ruminate" has no apply step',
+              '- pi -p "/pi-ruminate" has no apply step',
               "- no brain changes were written",
             ].join("\n"),
             ctx.hasUI,
@@ -433,11 +383,11 @@ export default function brainContext(pi: ExtensionAPI): void {
           return { action: "handled" as const };
         }
         startRun("ruminate-apply", { sessionManager });
-        return { action: "transform" as const, text: "/skill:ruminate" };
+        return { action: "transform" as const, text: "/skill:pi-ruminate" };
       }
 
       if (REJECT_PHRASES.has(normalized)) {
-        pi.appendEntry(BRAINTYPE_STAGE, { ...staged, status: "discarded" } satisfies RuminateStage);
+        await discardPiRuminateStage(projectRoot);
         emitStatus(pi, `${SUMMARY_MARKER}\n- preview-only: yes\n- no brain changes were written`, ctx.hasUI);
         return { action: "handled" as const };
       }
@@ -467,7 +417,7 @@ export default function brainContext(pi: ExtensionAPI): void {
       if (activeRun) {
         const stage =
           activeRun.mode === "ruminate-apply"
-            ? getLatestRuminateStage((ctx.sessionManager as SessionManagerLike).getBranch())
+            ? await getPiRuminateStage(projectRoot)
             : null;
         parts.push(renderRunInstructions(activeRun.mode, stage));
       }
@@ -496,7 +446,7 @@ export default function brainContext(pi: ExtensionAPI): void {
     if (!activeRun && INTERNAL_BRAINERD_TOOLS.has(event.toolName)) {
       return {
         block: true,
-        reason: `brainerd internal tool ${event.toolName} is only available during an explicit /reflect or /ruminate run.`,
+        reason: `brainerd internal tool ${event.toolName} is only available during an explicit /pi-reflect or /pi-ruminate run.`,
       };
     }
 
@@ -640,8 +590,7 @@ export default function brainContext(pi: ExtensionAPI): void {
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const projectRoot = await resolveProjectRoot(ctx.cwd);
-      const stage = createStageEntry(projectRoot, params.findingsSummary, params.rationale, params.changes);
-      pi.appendEntry(BRAINTYPE_STAGE, stage);
+      const stage = await stagePiRuminate(projectRoot, params);
 
       if (activeRun?.mode === "ruminate-preview") {
         activeRun.result = {
@@ -671,7 +620,8 @@ export default function brainContext(pi: ExtensionAPI): void {
     description: "Return the latest staged rumination preview for the current session",
     parameters: Type.Object({}),
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      const stage = getLatestRuminateStage((ctx.sessionManager as SessionManagerLike).getBranch());
+      const projectRoot = await resolveProjectRoot(ctx.cwd);
+      const stage = await getPiRuminateStage(projectRoot);
       if (!stage || stage.status !== "staged") {
         return {
           content: [{ type: "text", text: "No staged rumination preview is available." }],
@@ -712,31 +662,35 @@ export default function brainContext(pi: ExtensionAPI): void {
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const projectRoot = await resolveProjectRoot(ctx.cwd);
-      let changes = params.changes ?? [];
-      let appliedStage: RuminateStage | null = null;
-
       if (params.stageId) {
-        const stage = getLatestRuminateStage((ctx.sessionManager as SessionManagerLike).getBranch());
-        if (!stage || stage.status !== "staged" || stage.stageId !== params.stageId) {
-          throw new Error(`No staged rumination preview matched ${params.stageId}.`);
+        const applied = await applyPiRuminateStage(projectRoot, params.stageId);
+
+        if (activeRun) {
+          activeRun.result = {
+            mode: activeRun.mode,
+            previewOnly: false,
+            written: applied.apply.changed.length > 0,
+            changedFiles: applied.apply.changed,
+            syncedFiles: applied.apply.synced,
+          };
         }
-        appliedStage = stage;
-        changes = stage.changes;
+
+        const lines = [
+          `Changed: ${applied.apply.changed.length > 0 ? applied.apply.changed.join(", ") : "none"}`,
+          `Synced: ${applied.apply.synced.length > 0 ? applied.apply.synced.join(", ") : "none"}`,
+        ];
+        return {
+          content: [{ type: "text", text: lines.join("\n") }],
+          details: applied,
+        };
       }
 
+      const changes = params.changes ?? [];
       if (changes.length === 0) {
         throw new Error("brainerd_apply_changes requires either changes or a staged stageId.");
       }
 
       const result = await applyBrainChanges(projectRoot, changes);
-      if (appliedStage) {
-        pi.appendEntry(BRAINTYPE_STAGE, {
-          ...appliedStage,
-          status: "applied",
-          changedFiles: result.changed,
-          syncedFiles: result.synced,
-        } satisfies RuminateStage);
-      }
 
       if (activeRun) {
         activeRun.result = {

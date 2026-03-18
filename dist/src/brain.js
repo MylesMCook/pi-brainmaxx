@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BRAIN_DIR, BRAIN_VERSION_FILE, INDEX_ENTRYPOINT, LEGACY_VERSION_FILE, NOTES_DIR, PACKAGE_VERSION, PRINCIPLES_ENTRYPOINT, } from "./constants.js";
+import { BRAIN_DIR, BRAIN_VERSION_FILE, CLAUDE_IMPORTS_DIR, INDEX_ENTRYPOINT, LEGACY_VERSION_FILE, NOTES_DIR, PACKAGE_VERSION, PRINCIPLES_ENTRYPOINT, } from "./constants.js";
 import { exists, normalizeRepoRelativePath, readFileIfPresent, resolveSafeRepoPath } from "./fs-helpers.js";
 import { toPortablePath } from "./project-root.js";
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -247,6 +247,16 @@ const readNotes = async (projectRoot) => {
         .map((file) => toPortablePath(path.relative(path.join(projectRoot, "brain"), file)))
         .sort((a, b) => a.localeCompare(b));
 };
+const readManagedImports = async (projectRoot, relativeRoot) => {
+    const importRoot = await resolveSafeRepoPath(projectRoot, relativeRoot);
+    if (!(await exists(importRoot))) {
+        return [];
+    }
+    return (await walkFiles(importRoot))
+        .filter((file) => file.endsWith(".md"))
+        .map((file) => toPortablePath(path.relative(path.join(projectRoot, "brain"), file)))
+        .sort((a, b) => a.localeCompare(b));
+};
 const buildPrinciplesEntrypoint = (principles) => {
     const lines = [
         "# Principles",
@@ -269,7 +279,7 @@ const buildPrinciplesEntrypoint = (principles) => {
     lines.push("");
     return lines.join("\n");
 };
-const buildIndexEntrypoint = (principles, notes) => {
+const buildIndexEntrypoint = (principles, notes, claudeImports) => {
     const lines = [
         "# Brain",
         "",
@@ -299,6 +309,14 @@ const buildIndexEntrypoint = (principles, notes) => {
             lines.push(`- [[${note}]]`);
         }
     }
+    if (claudeImports.length > 0) {
+        lines.push("", "## Imported Claude Memory", "");
+        lines.push("These files are managed imports from Claude auto memory. Distill durable learnings into notes or principles instead of editing the imports directly.");
+        lines.push("");
+        for (const managedImport of claudeImports) {
+            lines.push(`- [[${managedImport}]]`);
+        }
+    }
     lines.push("");
     return lines.join("\n");
 };
@@ -315,6 +333,7 @@ const writeIfChanged = async (projectRoot, relativePath, content) => {
 const syncOwnedEntryPointsUnlocked = async (projectRoot, state) => {
     const principles = await readPrinciples(projectRoot);
     const notes = await readNotes(projectRoot);
+    const claudeImports = await readManagedImports(projectRoot, CLAUDE_IMPORTS_DIR);
     const updated = [];
     const skipped = [];
     if (state.ownedFiles.includes(PRINCIPLES_ENTRYPOINT)) {
@@ -326,7 +345,7 @@ const syncOwnedEntryPointsUnlocked = async (projectRoot, state) => {
         skipped.push(PRINCIPLES_ENTRYPOINT);
     }
     if (state.ownedFiles.includes(INDEX_ENTRYPOINT)) {
-        if (await writeIfChanged(projectRoot, INDEX_ENTRYPOINT, buildIndexEntrypoint(principles, notes))) {
+        if (await writeIfChanged(projectRoot, INDEX_ENTRYPOINT, buildIndexEntrypoint(principles, notes, claudeImports))) {
             updated.push(INDEX_ENTRYPOINT);
         }
     }
@@ -371,7 +390,7 @@ export const writeNoteIfMissing = async (projectRoot, noteRelativePath, content)
     return withBrainLock(projectRoot, async () => {
         const state = await readBrainState(projectRoot);
         if (!state) {
-            throw new Error("No project brain found. Run /brain-init first.");
+            throw new Error("No project brain found. Run pi-init, codex-init, or claude-init first.");
         }
         const destination = await resolveSafeRepoPath(projectRoot, portablePath);
         if (await exists(destination)) {
@@ -404,7 +423,7 @@ export const applyBrainChanges = async (projectRoot, changes) => {
     return withBrainLock(projectRoot, async () => {
         const state = await readBrainState(projectRoot);
         if (!state) {
-            throw new Error("No project brain found. Run /brain-init first.");
+            throw new Error("No project brain found. Run pi-init, codex-init, or claude-init first.");
         }
         const changed = [];
         for (const change of normalizedChanges) {

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Brainerd Ruminate"
-  short_description: "Mine older Codex sessions for missed durable memory"
-  default_prompt: "Use $brainerd-ruminate to review repo-scoped Codex session history, preview durable findings, and write only after explicit confirmation."
