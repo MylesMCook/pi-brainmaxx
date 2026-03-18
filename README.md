@@ -49,6 +49,11 @@ the TypeScript sources, rebuild it with:
 npm run build
 ```
 
+Brainerd also carries a temporary npm override for `fast-xml-parser` to avoid a
+transitive AWS/Pi XML parser advisory in the development toolchain. Remove that
+override once upstream Pi and AWS dependencies no longer pin the vulnerable
+range.
+
 On Windows, invoke the harness helpers through the `.cmd` wrappers:
 
 ```powershell
